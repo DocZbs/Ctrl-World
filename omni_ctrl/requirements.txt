@@ -1,0 +1,35 @@
+# Omni-Ctrl Requirements
+# Install with: pip install -r omni_ctrl/requirements.txt
+
+# Core dependencies
+numpy>=1.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Transformers and embeddings
+transformers>=4.30.0
+tokenizers>=0.13.0
+
+# FAISS for scenario retrieval
+# Choose one based on your hardware:
+faiss-cpu>=1.7.4
+# faiss-gpu>=1.7.4  # Uncomment if you have CUDA
+
+# OpenAI for GPT-4V evaluation
+openai>=1.0.0
+
+# Computer vision
+opencv-python>=4.8.0
+Pillow>=10.0.0
+
+# Configuration
+pyyaml>=6.0
+
+# Utilities
+tqdm>=4.65.0
+scipy>=1.10.0
+
+# Optional but recommended
+# wandb  # For experiment tracking
+# matplotlib  # For visualization
+# jupyter  # For analysis notebooks

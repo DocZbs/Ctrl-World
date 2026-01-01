@@ -69,8 +69,6 @@ GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 
 **📊  Train VPP in cunstom environments**: If you want to run VPP algorithm on your own robot, download the svd-robot model and follow instructions in the training section. -->
 
-
-
 ## Ctrl-World Inference 📊
 ### 📊 (1) Replay the recorded trajectories within world model.
 **Task Description:** We start from an initial observation sampled from the recorded trajectories and then generate long trajectories by replaying the recorded actions. At each interaction step, a 1-second action chunk is provided to the world model, and the interaction is repeated multiple times to produce the full rollout. 

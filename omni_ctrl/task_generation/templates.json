@@ -1,0 +1,134 @@
+[
+  {
+    "instruction": "Pick up the red block and place it in the bowl",
+    "success_criteria": [
+      "Red block is inside the bowl",
+      "Gripper is open and released the block"
+    ],
+    "objects": ["block", "bowl"],
+    "difficulty": 0.3
+  },
+  {
+    "instruction": "Open the drawer",
+    "success_criteria": [
+      "Drawer is fully opened",
+      "Gripper is released from handle"
+    ],
+    "objects": ["drawer"],
+    "difficulty": 0.5
+  },
+  {
+    "instruction": "Stack two blocks on top of each other",
+    "success_criteria": [
+      "Two blocks are stacked vertically",
+      "Stack is stable and not falling"
+    ],
+    "objects": ["block"],
+    "difficulty": 0.7
+  },
+  {
+    "instruction": "Close the drawer",
+    "success_criteria": [
+      "Drawer is fully closed"
+    ],
+    "objects": ["drawer"],
+    "difficulty": 0.4
+  },
+  {
+    "instruction": "Push the button",
+    "success_criteria": [
+      "Button is pressed down",
+      "Robot arm has moved away from button"
+    ],
+    "objects": ["button"],
+    "difficulty": 0.2
+  },
+  {
+    "instruction": "Pick up the cup and place it on the plate",
+    "success_criteria": [
+      "Cup is on the plate",
+      "Cup is upright",
+      "Gripper is open"
+    ],
+    "objects": ["cup", "plate"],
+    "difficulty": 0.4
+  },
+  {
+    "instruction": "Move the blue cube to the left of the red cube",
+    "success_criteria": [
+      "Blue cube is positioned to the left of red cube",
+      "Cubes are not touching"
+    ],
+    "objects": ["cube"],
+    "difficulty": 0.5
+  },
+  {
+    "instruction": "Slide the tray forward",
+    "success_criteria": [
+      "Tray has moved at least 10cm forward"
+    ],
+    "objects": ["tray"],
+    "difficulty": 0.3
+  },
+  {
+    "instruction": "Turn the knob clockwise",
+    "success_criteria": [
+      "Knob has rotated at least 90 degrees clockwise",
+      "Gripper has released the knob"
+    ],
+    "objects": ["knob"],
+    "difficulty": 0.6
+  },
+  {
+    "instruction": "Place all blocks in the container",
+    "success_criteria": [
+      "All visible blocks are inside the container",
+      "Gripper is empty"
+    ],
+    "objects": ["block", "container"],
+    "difficulty": 0.8
+  },
+  {
+    "instruction": "Flip the switch up",
+    "success_criteria": [
+      "Switch is in the up position"
+    ],
+    "objects": ["switch"],
+    "difficulty": 0.4
+  },
+  {
+    "instruction": "Wipe the table surface",
+    "success_criteria": [
+      "Cloth has moved across at least 50% of the table surface"
+    ],
+    "objects": ["cloth", "table"],
+    "difficulty": 0.5
+  },
+  {
+    "instruction": "Insert the peg into the hole",
+    "success_criteria": [
+      "Peg is fully inserted into the hole",
+      "Peg is vertical"
+    ],
+    "objects": ["peg", "board"],
+    "difficulty": 0.6
+  },
+  {
+    "instruction": "Pour water from cup to bowl",
+    "success_criteria": [
+      "Water has been transferred from cup to bowl",
+      "Cup is upright and placed down"
+    ],
+    "objects": ["cup", "bowl", "water"],
+    "difficulty": 0.9
+  },
+  {
+    "instruction": "Arrange three blocks in a row",
+    "success_criteria": [
+      "Three blocks are aligned in a straight horizontal line",
+      "Blocks are touching or very close to each other"
+    ],
+    "objects": ["block"],
+    "difficulty": 0.7
+  }
+]
