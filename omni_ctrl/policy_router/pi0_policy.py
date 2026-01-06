@@ -1,4 +1,4 @@
-"""Pi0.5 policy wrapper."""
+"""Pi0 DROID policy wrapper."""
 
 import sys
 from pathlib import Path
@@ -10,47 +10,43 @@ from scipy.spatial.transform import Rotation as R
 from .base_policy import BasePolicy
 
 
-class Pi05Policy(BasePolicy):
-    """Wrapper for Pi0.5 VLA model.
-
-    Reuses existing Pi0.5 integration from rollout_interact_pi.py.
-    """
+class Pi0Policy(BasePolicy):
+    """Wrapper for Pi0 VLA model (DROID variant)."""
 
     def __init__(
         self,
         checkpoint_path: str,
         device: str = "cuda:0",
         action_adapter_path: Optional[str] = None,
-        policy_type: str = "pi05",
+        policy_type: str = "pi0",
         pred_step: int = 5,
         policy_skip_step: int = 3,
         gripper_max: float = 0.7,
     ):
-        """Initialize Pi0.5 policy.
+        """Initialize Pi0 policy.
 
         Args:
-            checkpoint_path: Path to Pi0.5 checkpoint
+            checkpoint_path: Path to Pi0 checkpoint
             device: Device to run model on
             action_adapter_path: Optional path to action adapter (dynamics model)
-            policy_type: Policy type, one of "pi05", "pi0fast", "pi0"
+            policy_type: Policy type string (used for adapter indexing)
             pred_step: Number of prediction steps
             policy_skip_step: Skip step for policy output
             gripper_max: Maximum gripper position
         """
-        # Add openpi to path
         openpi_path = Path(__file__).parent.parent.parent / "openpi"
         if openpi_path.exists():
             sys.path.insert(0, str(openpi_path))
         else:
             print(f"Warning: OpenPI directory not found at {openpi_path}")
-            print("Pi0.5 policy may not work correctly without openpi module")
+            print("Pi0 policy may not work correctly without openpi module")
 
         try:
             from openpi.training import config as config_pi
             from openpi.policies import policy_config
 
-            # Get Pi0.5 DROID config
-            config = config_pi.get_config("pi05_droid")
+            # Get Pi0 DROID config
+            config = config_pi.get_config("pi0_droid")
 
             # Create trained policy with specified device
             self.policy = policy_config.create_trained_policy(
@@ -76,7 +72,7 @@ class Pi05Policy(BasePolicy):
                 self.get_fk_solution = get_fk_solution
                 print(f"✓ Action adapter loaded from {action_adapter_path}")
 
-            print(f"✓ Pi0.5 policy loaded from {checkpoint_path}")
+            print(f"✓ Pi0 policy loaded from {checkpoint_path}")
 
         except ImportError as e:
             raise ImportError(
@@ -84,12 +80,12 @@ class Pi05Policy(BasePolicy):
                 "Please ensure openpi is installed and available."
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize Pi0.5 policy: {e}")
+            raise RuntimeError(f"Failed to initialize Pi0 policy: {e}")
 
     @property
     def name(self) -> str:
         """Return policy name."""
-        return "pi05"
+        return "pi0"
 
     @property
     def action_space(self) -> str:
@@ -97,27 +93,11 @@ class Pi05Policy(BasePolicy):
         return "joint_vel"
 
     def predict(self, obs: Dict, task_instruction: str) -> np.ndarray:
-        """Predict joint velocity action.
-
-        Pi0.5 generates 15-step action chunks, so we buffer them
-        and return one at a time.
-
-        Args:
-            obs: Observation dict with:
-                - image_primary: (H, W, 3) RGB image
-                - image_wrist: (H, W, 3) RGB image
-                - joint_pos: (7,) joint positions
-                - gripper_pos: (1,) gripper position
-            task_instruction: Natural language instruction
-
-        Returns:
-            Joint velocity action (8,) - 7 joint velocities + 1 gripper
-        """
-        # If buffer has actions, return next
+        """Predict joint velocity action."""
         if len(self.action_buffer) > 0:
             return self.action_buffer.pop(0)
 
-        action_chunk = self.predict_chunk(obs, task_instruction, chunk_size=10)
+        action_chunk = self.predict_chunk(obs, task_instruction, chunk_size=self.action_chunk_size)
         if action_chunk is None or len(action_chunk) == 0:
             return np.zeros(8, dtype=np.float32)
 
@@ -125,113 +105,83 @@ class Pi05Policy(BasePolicy):
         return self.action_buffer.pop(0)
 
     def predict_chunk(self, obs: Dict, task_instruction: str, chunk_size: int = 10) -> np.ndarray:
-        """Predict a full action chunk from Pi0.5.
-
-        Following the same preprocessing pipeline as rollout_interact_pi.py:
-        - Resize images from (192, 320, 3) to (180, 320) first
-        - Then apply resize_with_pad to 224x224
-        """
+        """Predict a full action chunk from Pi0."""
         try:
             from openpi_client import image_tools
 
-            # Preprocess images - same as rollout_interact_pi.py lines 231-239
-            # NOTE: orchestrator already resizes images to (180, 320), so we don't need to resize again
-            image1 = obs["image_primary"]  # exterior image (180, 320, 3)
-            image2 = obs["image_wrist"]     # wrist image (180, 320, 3)
+            image_primary = obs["image_primary"]
+            image_wrist = obs["image_wrist"]
 
-            # Build example dict - same as rollout_interact_pi.py lines 240-246
             example = {
-                "observation/exterior_image_1_left": image_tools.resize_with_pad(image1, 224, 224),
-                "observation/wrist_image_left": image_tools.resize_with_pad(image2, 224, 224),
+                "observation/exterior_image_1_left": image_tools.resize_with_pad(image_primary, 224, 224),
+                "observation/wrist_image_left": image_tools.resize_with_pad(image_wrist, 224, 224),
                 "observation/joint_position": obs["joint_pos"][:7],
                 "observation/gripper_position": obs["joint_pos"][-1:],
                 "prompt": task_instruction,
             }
 
-            # Policy inference - same as rollout_interact_pi.py line 247
             with torch.no_grad():
-                action_chunk = self.policy.infer(example)["actions"]  # (10, 8) velocity
+                action_chunk = self.policy.infer(example)["actions"]
 
             if isinstance(action_chunk, torch.Tensor):
                 action_chunk = action_chunk.cpu().numpy()
 
+            if action_chunk.shape[0] != chunk_size:
+                if action_chunk.shape[0] < chunk_size:
+                    action_chunk = np.tile(action_chunk, (chunk_size // action_chunk.shape[0] + 1, 1))
+                action_chunk = action_chunk[:chunk_size]
+
             return action_chunk
 
         except Exception as e:
-            print(f"Error in Pi0.5 forward pass: {e}")
+            print(f"Error in Pi0 forward pass: {e}")
             import traceback
             traceback.print_exc()
             return np.zeros((chunk_size, 8), dtype=np.float32)
 
     def predict_with_adapter(self, obs: Dict, task_instruction: str) -> tuple:
-        """Predict action with action adapter and FK conversion.
-
-        This follows the same pipeline as rollout_interact_pi.py forward_policy method (lines 228-291).
-
-        Args:
-            obs: Observation dict with:
-                - image_primary: (192, 320, 3) RGB exterior image
-                - image_wrist: (192, 320, 3) RGB wrist image
-                - joint_pos: (8,) joint positions (7 joints + 1 gripper)
-            task_instruction: Natural language instruction
-
-        Returns:
-            policy_in_out: Dict with 'joint_pos', 'joint_vel', 'state_fk'
-            joint_pos_skip: (pred_step, 8) joint positions with gripper
-            state_fk_skip: (pred_step, 7) cartesian poses (xyz, euler, gripper)
-        """
+        """Predict action with action adapter and FK conversion."""
         if self.dynamics_model is None:
             raise RuntimeError("Action adapter not loaded. Please provide action_adapter_path during initialization.")
 
-        # Get action chunk from policy - same as rollout_interact_pi.py line 247
         action_chunk = self.predict_chunk(obs, task_instruction)
 
-        # Action adapter - same as rollout_interact_pi.py lines 249-277
         joints = obs["joint_pos"]
         current_joint = joints[None, :][:, :7]
         current_gripper = joints[None, :][:, 7:]
 
-        # Index strategy based on policy type - same as rollout_interact_pi.py lines 252-255
-        if 'pi05' in self.policy_type:
-            idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-        else:
-            idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 9, 9]
+        idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 9, 9]
 
-        # Policy output joint velocity and gripper position
-        joint_vel = action_chunk[:, :7]  # (15, 7)
-        gripper_pos = action_chunk[:, 7:]  # (15, 1)
-        joint_vel = joint_vel[idx]  # (15, 7)
-        gripper_pos = gripper_pos[idx]  # (15, 1)
+        joint_vel = action_chunk[:, :7]
+        gripper_pos = action_chunk[:, 7:]
+        joint_vel = joint_vel[idx]
+        gripper_pos = gripper_pos[idx]
         gripper_pos = np.clip(gripper_pos, 0, self.gripper_max)
 
-        # Calculate future joint positions - same as rollout_interact_pi.py line 264
         joint_pos = self.dynamics_model(current_joint, joint_vel, None, training=False)
 
-        # FK - same as rollout_interact_pi.py lines 265-277
         state_fk = []
-        joint_pos = np.concatenate([current_joint, joint_pos], axis=0)[:15]  # (15, 7)
-        gripper_pos = np.concatenate([current_gripper, gripper_pos], axis=0)[:15]  # (15, 1)
-        joint_vel = joint_vel  # (15, 7)
+        joint_pos = np.concatenate([current_joint, joint_pos], axis=0)[:15]
+        gripper_pos = np.concatenate([current_gripper, gripper_pos], axis=0)[:15]
         for i in range(joint_pos.shape[0]):
             current_state_fk = self.get_fk_solution(joint_pos[i, :7])
             xyz = current_state_fk[:3, 3]
             rotation_matrix = current_state_fk[:3, :3]
             r = R.from_matrix(rotation_matrix)
-            euler = r.as_euler('xyz')
+            euler = r.as_euler("xyz")
             state_fk.append(np.concatenate([xyz, euler, gripper_pos[i]], axis=0))
-        state_fk = np.array(state_fk)  # (15, 7)
+        state_fk = np.array(state_fk)
 
-        # Prepare output - same as rollout_interact_pi.py lines 279-290
         skip = self.policy_skip_step
         valid_num = int(skip * (self.pred_step - 1))
         policy_in_out = {
-            'joint_pos': joint_pos[:valid_num],  # (12, 7)
-            'joint_vel': joint_vel[:valid_num],  # (12, 7)
-            'state_fk': state_fk[:valid_num],    # (12, 7)
+            "joint_pos": joint_pos[:valid_num],
+            "joint_vel": joint_vel[:valid_num],
+            "state_fk": state_fk[:valid_num],
         }
-        state_fk_skip = state_fk[::skip][:self.pred_step]  # (5, 7)
-        joint_pos_skip = joint_pos[::skip][:self.pred_step]  # (5, 7)
-        joint_pos_skip = np.concatenate([joint_pos_skip, state_fk_skip[:, -1:]], axis=-1)  # (5, 8) add gripper pos
+        state_fk_skip = state_fk[::skip][:self.pred_step]
+        joint_pos_skip = joint_pos[::skip][:self.pred_step]
+        joint_pos_skip = np.concatenate([joint_pos_skip, state_fk_skip[:, -1:]], axis=-1)
 
         return policy_in_out, joint_pos_skip, state_fk_skip
 

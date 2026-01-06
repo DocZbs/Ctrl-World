@@ -1,8 +1,8 @@
-# Omni-Ctrl Default Configuration
+# Omni-Ctrl 测试配置（不需要 OpenAI API）
 
-experiment_name: "omni_ctrl_mvp"
-output_dir: "experiments/omni_ctrl_mvp"
-num_iterations: 100
+experiment_name: "omni_ctrl_test"
+output_dir: "experiments/omni_ctrl_test"
+num_iterations: 1
 seed: 42
 device: "cuda:0"
 
@@ -10,9 +10,6 @@ device: "cuda:0"
 task_gen:
   type: "template"
   templates_path: "omni_ctrl/task_generation/templates.json"
-  llm_model: "gpt-4"
-  llm_api_key: "${OPENAI_API_KEY}"
-  droid_meta_path: "dataset_example/droid_subset"
 
 # Scenario Retrieval Configuration
 retrieval:
@@ -29,7 +26,6 @@ router:
       checkpoint: "/data1/zbs_files/data/HF/hub/models--pi05_droid/openpi-assets/checkpoints/pi05_droid"
       action_space: "joint_vel"
   selection_strategy: "round_robin"
-  ucb_coefficient: 1.0
 
 # Rollout Configuration
 rollout:
@@ -37,25 +33,23 @@ rollout:
   svd_model_path: "/data1/zbs_files/data/HF/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
   clip_model_path: "/data1/zbs_files/data/HF/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
   data_stat_path: "dataset_meta_info/droid/stat.json"
-  max_steps: 50
+  max_steps: 20  # 增加到100步：100/5 = 20次循环 × 5帧 = 100帧 = 20秒
   pred_step: 5
   policy_skip_step: 2
-  action_adapter_path: "models/action_adapter/model2_15_9.pth"
-  device: "cuda:1"  # Use cuda:1 for Ctrl-World, Pi0.5 on cuda:0
+  device: "cuda:1"
 
-# Evaluation Configuration
+# Evaluation Configuration - 使用 dummy 评估器进行测试
 evaluation:
-  vlm_type: "gpt-5"
-  vlm_model: "gpt-5"
-  api_key: "${OPENAI_API_KEY}"
+  vlm_type: "dummy"  # 使用 dummy 评估器，不需要 API
+  api_key: "not-needed"
   max_retries: 3
   timeout: 60
   success_weight: 1.0
   consistency_weight: 0.5
 
 # Skill Library
-skill_library_path: "experiments/omni_ctrl_mvp/skills"
+skill_library_path: "experiments/omni_ctrl_test/skills"
 
 # Logging
-log_frequency: 10
+log_frequency: 1
 video_logging: true

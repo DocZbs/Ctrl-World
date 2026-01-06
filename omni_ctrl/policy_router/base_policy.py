@@ -48,6 +48,18 @@ class BasePolicy(ABC):
         """
         pass
 
+    def predict_chunk(self, obs: Dict, task_instruction: str, chunk_size: int) -> np.ndarray:
+        """Predict an action chunk for chunked rollouts.
+
+        By default, this repeats a single-step action to fill the chunk.
+        Policies with native chunk outputs should override this method.
+        """
+        action = self.predict(obs, task_instruction)
+        action = np.asarray(action)
+        if action.ndim == 2:
+            return action
+        return np.tile(action, (chunk_size, 1))
+
     @abstractmethod
     def reset(self):
         """Reset policy state.

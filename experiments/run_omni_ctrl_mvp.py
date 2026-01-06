@@ -15,6 +15,21 @@ Usage:
     python experiments/run_omni_ctrl_mvp.py --iterations 50 --output experiments/my_run
 """
 
+import os
+
+# Configure JAX memory BEFORE any JAX imports
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+if "XLA_PYTHON_CLIENT_MEM_FRACTION" not in os.environ:
+    os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.35"
+if "XLA_PYTHON_CLIENT_ALLOCATOR" not in os.environ:
+    os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
+print(
+    "JAX configured: pre-allocation={}, memory fraction={}".format(
+        os.environ.get("XLA_PYTHON_CLIENT_PREALLOCATE"),
+        os.environ.get("XLA_PYTHON_CLIENT_MEM_FRACTION"),
+    )
+)
+
 import sys
 import argparse
 from pathlib import Path
@@ -31,7 +46,29 @@ from omni_ctrl.configs.base_config import (
     EvaluationConfig,
     RouterConfig,
 )
-from omni_ctrl.core.orchestrator import OmniCtrlOrchestrator
+def _parse_cuda_index(device_str: str | None) -> int | None:
+    if not device_str:
+        return None
+    if not device_str.startswith("cuda"):
+        return None
+    if ":" not in device_str:
+        return 0
+    try:
+        return int(device_str.split(":", 1)[1])
+    except ValueError:
+        return None
+
+
+def _remap_cuda_device(device_str: str | None, mapping: dict[int, int]) -> str | None:
+    if not device_str:
+        return None
+    if not device_str.startswith("cuda"):
+        return device_str
+    idx = _parse_cuda_index(device_str)
+    if idx is None:
+        return device_str
+    new_idx = mapping.get(idx, idx)
+    return f"cuda:{new_idx}"
 
 
 def parse_args():
@@ -129,7 +166,8 @@ def create_default_config():
     # Evaluation config
     # ⚠️ SET YOUR OPENAI API KEY!
     config.evaluation = EvaluationConfig(
-        vlm_type="gpt4v",
+        vlm_type="gpt-5",
+        vlm_model="gpt-5",
         api_key="your-openai-api-key-here",  # TODO: UPDATE THIS!
         max_retries=3,
         timeout=60,
@@ -195,6 +233,41 @@ def main():
         config.evaluation.api_key = args.api_key
         print("OpenAI API key provided via command line")
 
+    # Limit visible GPUs to only those referenced by config (prevents JAX using all GPUs)
+    if "CUDA_VISIBLE_DEVICES" not in os.environ:
+        policy_devices = []
+        if getattr(config, "router", None) and getattr(config.router, "available_policies", None):
+            for pol in config.router.available_policies:
+                dev = getattr(pol, "device", None)
+                if dev:
+                    policy_devices.append(dev)
+
+        device_indices = []
+        for dev in (config.device, config.rollout.device, *policy_devices):
+            idx = _parse_cuda_index(dev)
+            if idx is not None:
+                device_indices.append(idx)
+        unique_devices = sorted(set(device_indices))
+        if unique_devices:
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str(d) for d in unique_devices)
+            mapping = {old: new for new, old in enumerate(unique_devices)}
+            config.device = _remap_cuda_device(config.device, mapping)
+            config.rollout.device = _remap_cuda_device(config.rollout.device, mapping)
+            if getattr(config, "router", None) and getattr(config.router, "available_policies", None):
+                for pol in config.router.available_policies:
+                    if getattr(pol, "device", None):
+                        pol.device = _remap_cuda_device(pol.device, mapping)
+            print(f"CUDA_VISIBLE_DEVICES set to: {os.environ['CUDA_VISIBLE_DEVICES']}")
+            print(f"Remapped device strings: policy={config.device}, rollout={config.rollout.device}")
+    else:
+        print(f"CUDA_VISIBLE_DEVICES already set: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
+    # Tell openpi (JAX) to load params onto a single device for Pi policy
+    policy_idx = _parse_cuda_index(config.device)
+    if policy_idx is not None:
+        os.environ["OPENPI_JAX_DEVICE"] = str(policy_idx)
+        print(f"OPENPI_JAX_DEVICE set to: {os.environ['OPENPI_JAX_DEVICE']}")
+
     # Validate critical paths
     print("\nValidating configuration...")
     validation_errors = []
@@ -231,6 +304,9 @@ def main():
     print(f"VLM evaluator:  {config.evaluation.vlm_type}")
     print(f"Policy:         {config.router.available_policies[0].name}")
     print("=" * 70 + "\n")
+
+    # Import after CUDA_VISIBLE_DEVICES is set to avoid JAX grabbing all GPUs
+    from omni_ctrl.core.orchestrator import OmniCtrlOrchestrator
 
     # Initialize orchestrator
     try:

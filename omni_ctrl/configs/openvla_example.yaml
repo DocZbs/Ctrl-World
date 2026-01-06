@@ -1,0 +1,94 @@
+# Example configuration for using OpenVLA with DROID dataset
+# This shows how to configure OpenVLA policy to work with DROID observations
+
+experiment_name: "omni_ctrl_openvla"
+output_dir: "experiments/omni_ctrl_openvla"
+num_iterations: 100
+seed: 42
+device: "cuda:0"
+
+# Task Generation Configuration
+task_gen:
+  type: "template"
+  templates_path: "omni_ctrl/task_generation/templates.json"
+  llm_model: "gpt-4"
+  llm_api_key: "${OPENAI_API_KEY}"
+  droid_meta_path: "dataset_example/droid_subset"
+
+# Scenario Retrieval Configuration
+retrieval:
+  droid_path: "dataset_example/droid_subset"
+  index_path: "experiments/droid_index.faiss"
+  clip_model_path: "openai/clip-vit-base-patch32"
+  top_k: 5
+  rebuild_index: false
+
+# Policy Router Configuration
+router:
+  available_policies:
+    # Pi0.5 policy (for comparison)
+    - name: "pi05"
+      checkpoint: "/path/to/pi05_droid_checkpoint"
+      action_space: "joint_vel"
+
+    # OpenVLA policy configuration
+    - name: "openvla"
+      checkpoint: "/path/to/openvla_checkpoint"
+      device: "cuda:0"
+
+      # Action space: "cartesian", "cartesian_delta", or "joint_vel"
+      # Note: OpenVLA is typically trained on cartesian actions
+      action_space: "cartesian"
+
+      # Image selection for DROID multi-camera setup
+      # Option 1: Use exterior/primary camera (default)
+      use_wrist_camera: false
+
+      # Option 2: Use wrist camera instead
+      # use_wrist_camera: true
+
+      # Optional: Explicitly specify image key (overrides use_wrist_camera)
+      # image_key: "image_primary"  # or "image_wrist"
+
+      # Unnormalization key for OpenVLA actions
+      # This should match the dataset OpenVLA was trained on
+      unnorm_key: "bridge_orig"  # Common options: "bridge_orig", "fractal", etc.
+
+      # Prompt template for task instructions
+      prompt_template: "In: What action should the robot take to {instruction}?\nOut:"
+
+      # Optional: Path to rescaling statistics for action denormalization
+      # rescale_stats_path: "path/to/droid_stats.json"
+
+  # Selection strategy: "round_robin", "greedy", or "ucb"
+  selection_strategy: "round_robin"
+  ucb_coefficient: 1.0
+
+# Rollout Configuration
+rollout:
+  wm_ckpt: "/data1/zbs_files/data/HF/hub/models--yjguo--Ctrl-World/snapshots/8cf814693f411962dc866a2ddb5b785afd17a93a/checkpoint-10000.pt"
+  svd_model_path: "/data1/zbs_files/data/HF/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
+  clip_model_path: "/data1/zbs_files/data/HF/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
+  data_stat_path: "dataset_meta_info/droid/stat.json"
+  max_steps: 50
+  pred_step: 5
+  policy_skip_step: 2
+  action_adapter_path: "models/action_adapter/model2_15_9.pth"
+  device: "cuda:1"
+
+# Evaluation Configuration
+evaluation:
+  vlm_type: "gpt-4o"
+  vlm_model: "gpt-4o"
+  api_key: "${OPENAI_API_KEY}"
+  max_retries: 3
+  timeout: 60
+  success_weight: 1.0
+  consistency_weight: 0.5
+
+# Skill Library
+skill_library_path: "experiments/omni_ctrl_openvla/skills"
+
+# Logging
+log_frequency: 10
+video_logging: true

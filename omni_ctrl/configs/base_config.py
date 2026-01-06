@@ -31,7 +31,19 @@ class PolicyConfig:
     """Configuration for a single policy."""
     name: str
     checkpoint: str
-    action_space: str  # "joint_vel", "cartesian", "joint_pos"
+    action_space: str  # "joint_vel", "cartesian", "cartesian_delta", "joint_pos"
+    device: Optional[str] = None
+    # Optional OpenVLA-specific fields
+    unnorm_key: Optional[str] = None
+    prompt_template: Optional[str] = None
+    image_key: Optional[str] = None
+    use_wrist_camera: bool = False  # For DROID multi-camera: use wrist camera instead of primary
+    rescale_stats_path: Optional[str] = None
+    # Optional Octo-specific fields
+    horizon: Optional[int] = None
+    use_language: Optional[bool] = None
+    use_goal_image: Optional[bool] = None
+    image_size: Optional[int] = None
 
 
 @dataclass
@@ -39,6 +51,7 @@ class RouterConfig:
     """Configuration for policy router."""
     available_policies: List[PolicyConfig] = field(default_factory=list)
     selection_strategy: str = "round_robin"  # "round_robin", "ucb", "greedy"
+    sticky: bool = False  # If true, select once and reuse for all episodes
 
     # UCB parameters
     ucb_coefficient: float = 1.0
@@ -68,14 +81,24 @@ class RolloutConfig:
 @dataclass
 class EvaluationConfig:
     """Configuration for VLM evaluation."""
-    vlm_type: str = "gpt4v"  # "gpt4v", "claude", "gemini", "local"
+    vlm_type: str = "gpt-5"  # "gpt-5", "claude", "gemini", "local"
     api_key: str = ""
+    vlm_model: str = "gpt-5"
+    vlm_fallback_model: str = "gpt-4o-mini"
     max_retries: int = 3
     timeout: int = 60
 
     # Reward computation weights
     success_weight: float = 1.0
     consistency_weight: float = 0.5
+
+
+@dataclass
+class FixedScenarioConfig:
+    """Configuration for using a fixed scenario instead of retrieval."""
+    enabled: bool = False
+    annotation_path: str = ""
+    droid_root: str = ""
 
 
 @dataclass
@@ -93,6 +116,7 @@ class OmniCtrlConfig:
     router: RouterConfig = field(default_factory=RouterConfig)
     rollout: RolloutConfig = field(default_factory=RolloutConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
+    fixed_scenario: Optional[FixedScenarioConfig] = None
 
     # Skill library
     skill_library_path: str = "experiments/omni_ctrl_mvp/skills"
@@ -125,5 +149,7 @@ class OmniCtrlConfig:
             config_dict["rollout"] = RolloutConfig(**config_dict["rollout"])
         if "evaluation" in config_dict:
             config_dict["evaluation"] = EvaluationConfig(**config_dict["evaluation"])
+        if "fixed_scenario" in config_dict:
+            config_dict["fixed_scenario"] = FixedScenarioConfig(**config_dict["fixed_scenario"])
 
         return cls(**config_dict)

@@ -12,3 +12,6 @@ synthetic_traj*
 dataset_example/droid_subset/annotation/val_old*
 data/
 openpi/
+experiments/
+*pt
+*log

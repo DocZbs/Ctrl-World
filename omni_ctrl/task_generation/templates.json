@@ -80,29 +80,30 @@
     "difficulty": 0.6
   },
   {
-    "instruction": "Place all blocks in the container",
+    "instruction": "Pick up the container and put it in the bag",
     "success_criteria": [
-      "All visible blocks are inside the container",
+      "Container is inside the bag",
       "Gripper is empty"
     ],
-    "objects": ["block", "container"],
-    "difficulty": 0.8
-  },
-  {
-    "instruction": "Flip the switch up",
-    "success_criteria": [
-      "Switch is in the up position"
-    ],
-    "objects": ["switch"],
-    "difficulty": 0.4
-  },
-  {
-    "instruction": "Wipe the table surface",
-    "success_criteria": [
-      "Cloth has moved across at least 50% of the table surface"
-    ],
-    "objects": ["cloth", "table"],
+    "objects": ["container", "bag"],
     "difficulty": 0.5
+  },
+  {
+    "instruction": "Put the blue block in the green bowl",
+    "success_criteria": [
+      "Blue block is inside the green bowl",
+      "Gripper is open and released the block"
+    ],
+    "objects": ["block", "bowl"],
+    "difficulty": 0.3
+  },
+  {
+    "instruction": "Move the duvet to the left",
+    "success_criteria": [
+      "Duvet has moved to the left side"
+    ],
+    "objects": ["duvet"],
+    "difficulty": 0.4
   },
   {
     "instruction": "Insert the peg into the hole",

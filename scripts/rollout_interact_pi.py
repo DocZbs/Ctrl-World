@@ -45,7 +45,7 @@ class agent():
         self.accelerator = Accelerator()
         self.device = self.accelerator.device
         self.dtype = args.dtype
-
+        #初始化策略配置
         # load pi policy
         if 'pi05' in args.policy_type:
             config = config_pi.get_config("pi05_droid")
@@ -61,7 +61,7 @@ class agent():
         self.policy = policy_config.create_trained_policy(config, args.pi_ckpt)
 
         # load ctrl-world model
-
+    
         self.model = CrtlWorld(args)
         self.model.load_state_dict(torch.load(args.val_model_path))
         self.model.to(self.accelerator.device).to(self.dtype)
@@ -73,6 +73,7 @@ class agent():
             self.state_p99 = np.array(data_stat['state_99'])[None,:]
         
         # Since the official Pi-Droid model output joint velocity, and crtl-world is train on cartesian space, we need to load an light-weight adapter to transform joint velocity action into cartesian pose action. 
+        # 讲笛卡尔坐标转换为pi-0能接受的关节位置
         if args.action_adapter is not None:
             from models.action_adapter.train2 import Dynamics
             self.dynamics_model = Dynamics(action_dim=7, action_num=15, hidden_size=512).to(self.device)

@@ -92,7 +92,8 @@ retrieval:
   clip_model_path: "openai/clip-vit-base-patch32"
 
 evaluation:
-  vlm_type: "gpt4v"
+  vlm_type: "gpt-5"
+  vlm_model: "gpt-5"
   api_key: "${OPENAI_API_KEY}"
 
 router:

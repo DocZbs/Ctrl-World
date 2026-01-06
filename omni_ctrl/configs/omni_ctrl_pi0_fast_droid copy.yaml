@@ -1,61 +1,56 @@
-# Omni-Ctrl Default Configuration
+# Omni-Ctrl config for Pi0-FAST DROID policy.
 
-experiment_name: "omni_ctrl_mvp"
-output_dir: "experiments/omni_ctrl_mvp"
-num_iterations: 100
+experiment_name: "omni_ctrl_pi0_fast_droid"
+output_dir: "experiments/omni_ctrl_pi0_fast_droid"
+num_iterations: 1
 seed: 42
 device: "cuda:0"
 
-# Task Generation Configuration
+fixed_scenario:
+  enabled: false
+  annotation_path: ""
+  droid_root: "dataset_example/droid_subset"
+
 task_gen:
   type: "template"
   templates_path: "omni_ctrl/task_generation/templates.json"
-  llm_model: "gpt-4"
-  llm_api_key: "${OPENAI_API_KEY}"
-  droid_meta_path: "dataset_example/droid_subset"
 
-# Scenario Retrieval Configuration
 retrieval:
   droid_path: "dataset_example/droid_subset"
   index_path: "experiments/droid_index.faiss"
   clip_model_path: "openai/clip-vit-base-patch32"
-  top_k: 5
+  top_k: 3
   rebuild_index: false
 
-# Policy Router Configuration
 router:
   available_policies:
-    - name: "pi05"
-      checkpoint: "/data1/zbs_files/data/HF/hub/models--pi05_droid/openpi-assets/checkpoints/pi05_droid"
+    - name: "pi0fast"
+      checkpoint: "/data1/zbs_files/data/HF/hub/openpi-assets/checkpoints/pi0_fast_droid"
       action_space: "joint_vel"
   selection_strategy: "round_robin"
-  ucb_coefficient: 1.0
+  sticky: true
 
-# Rollout Configuration
 rollout:
   wm_ckpt: "/data1/zbs_files/data/HF/hub/models--yjguo--Ctrl-World/snapshots/8cf814693f411962dc866a2ddb5b785afd17a93a/checkpoint-10000.pt"
   svd_model_path: "/data1/zbs_files/data/HF/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
   clip_model_path: "/data1/zbs_files/data/HF/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
   data_stat_path: "dataset_meta_info/droid/stat.json"
-  max_steps: 50
+  max_steps: 100
   pred_step: 5
   policy_skip_step: 2
   action_adapter_path: "models/action_adapter/model2_15_9.pth"
-  device: "cuda:1"  # Use cuda:1 for Ctrl-World, Pi0.5 on cuda:0
+  device: "cuda:1"
 
-# Evaluation Configuration
 evaluation:
-  vlm_type: "gpt-5"
-  vlm_model: "gpt-5"
+  vlm_type: "gpt-5.1"
+  vlm_model: "gpt-5.1"
   api_key: "${OPENAI_API_KEY}"
   max_retries: 3
   timeout: 60
   success_weight: 1.0
   consistency_weight: 0.5
 
-# Skill Library
-skill_library_path: "experiments/omni_ctrl_mvp/skills"
+skill_library_path: "experiments/omni_ctrl_pi0_fast_droid/skills"
 
-# Logging
-log_frequency: 10
+log_frequency: 1
 video_logging: true

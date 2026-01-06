@@ -70,9 +70,13 @@ class Dynamics(nn.Module):
         assert joint.shape[1:] == (1, self.action_dim), "Joint shape should be (B, 1, action_dim), got {}".format(joint.shape)
         assert joint_vel.shape[1:] == (self.action_num, self.action_dim), "Joint velocity shape should be (B, action_num, action_dim), got {}".format(joint_vel.shape)
         # assert joint_delta.shape[1:] == (self.action_num, 7), "Joint delta shape should be (B, action_num, 7), got {}".format(joint_delta.shape)
-        joint = torch.tensor(joint).float().to(self.device)  # (B, T, action_num, action_dim)
+
+        # Use the device of model parameters instead of self.device
+        device = next(self.parameters()).device
+
+        joint = torch.tensor(joint).float().to(device)  # (B, T, action_num, action_dim)
         joint_vel = self.normalize_bound(joint_vel, np.array(self.joint_vel_01), np.array(self.joint_vel_99))
-        joint_vel = torch.tensor(joint_vel).float().to(self.device)  # (B, T, action_num, action_dim)
+        joint_vel = torch.tensor(joint_vel).float().to(device)  # (B, T, action_num, action_dim)
 
         B = joint.shape[0]
         joint = joint.reshape(B, -1)  # (B*T, 8)
@@ -83,7 +87,7 @@ class Dynamics(nn.Module):
 
         if training:
             joint_delta = self.normalize_bound(joint_delta, np.array(self.joint_delta_01), np.array(self.joint_delta_99))
-            joint_delta = torch.tensor(joint_delta).float().to(self.device)
+            joint_delta = torch.tensor(joint_delta).float().to(device)
             loss = F.mse_loss(pred, joint_delta)  # (B, T, 7)
             return loss
 
@@ -104,6 +108,9 @@ class Dynamics(nn.Module):
         clip_max: float = 1,
         eps: float = 1e-8,
     ) -> np.ndarray:
+        # Handle both numpy arrays and torch tensors
+        if isinstance(data, torch.Tensor):
+            data = data.cpu().numpy()
         ndata = 2 * (data - data_min) / (data_max - data_min + eps) - 1
         # return np.clip(ndata, clip_min, clip_max)
         return ndata

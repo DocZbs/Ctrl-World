@@ -1,8 +1,9 @@
-"""GPT-4V based evaluation for robot manipulation tasks."""
+"""OpenAI VLM evaluation for robot manipulation tasks."""
 
 import base64
 import json
 import io
+import os
 from pathlib import Path
 from dataclasses import dataclass
 import numpy as np
@@ -34,6 +35,10 @@ class EvalResult:
         reward: Computed reward signal for router update
         reasoning: VLM's textual reasoning/explanation
         raw_response: Raw VLM response dict
+        failure_reason: Categorized failure reason - one of:
+            - "success": Task completed successfully
+            - "wm_failure": Failed due to world model (unrealistic physics, hallucinations)
+            - "vla_failure": Failed due to VLA policy (wrong actions, poor planning)
     """
 
     success: bool
@@ -41,10 +46,11 @@ class EvalResult:
     reward: float
     reasoning: str
     raw_response: dict
+    failure_reason: str = "success"  # Default to success
 
 
-class GPT4VEvaluator:
-    """Evaluate robot manipulation episodes using GPT-4V.
+class OpenAIVLMEvaluator:
+    """Evaluate robot manipulation episodes using OpenAI VLMs.
 
     Provides both task success evaluation and physical consistency checking.
     """
@@ -55,13 +61,23 @@ class GPT4VEvaluator:
         Args:
             config: EvaluationConfig instance
         """
-        self.client = openai.OpenAI(api_key=config.api_key)
+        api_key = getattr(config, "api_key", None)
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY", "")
+        elif isinstance(api_key, str) and api_key.startswith("${") and api_key.endswith("}"):
+            env_key = api_key[2:-1]
+            api_key = os.getenv(env_key, "")
+
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+        self.client = openai.OpenAI(api_key=api_key)
+        self.model = getattr(config, "vlm_model", "gpt-4o-mini")
+        self.fallback_model = getattr(config, "vlm_fallback_model", None)
         self.max_retries = config.max_retries
         self.timeout = config.timeout
         self.success_weight = config.success_weight
         self.consistency_weight = config.consistency_weight
 
-        print("GPT-4V Evaluator initialized")
+        print("OpenAI VLM Evaluator initialized")
 
     def evaluate(self, video_path: str, task) -> EvalResult:
         """Evaluate episode for task success from video.
@@ -84,6 +100,7 @@ class GPT4VEvaluator:
                 reward=0.0,
                 reasoning="Failed to extract video frames",
                 raw_response={},
+                failure_reason="wm_failure",  # Video extraction failure indicates WM issue
             )
 
         # Build evaluation prompt
@@ -92,7 +109,7 @@ class GPT4VEvaluator:
         # Call GPT-4V with retries
         for attempt in range(self.max_retries):
             try:
-                response = self._call_gpt4v(frames, prompt)
+                response = self._call_vlm(frames, prompt)
                 break
             except Exception as e:
                 print(f"GPT-4V API call failed (attempt {attempt + 1}/{self.max_retries}): {e}")
@@ -103,6 +120,7 @@ class GPT4VEvaluator:
                         reward=0.0,
                         reasoning=f"API call failed: {e}",
                         raw_response={},
+                        failure_reason="wm_failure",  # API failure means we can't evaluate
                     )
 
         # Parse response
@@ -134,13 +152,19 @@ Watch the sequence of video frames (shown chronologically) and evaluate:
    - Examples: Objects disappearing, teleporting, defying gravity, unrealistic motions
    - Score: 0.0 (many issues) to 1.0 (perfectly consistent)
 
-3. **Reasoning**: Provide 2-3 sentences explaining your evaluation. Be specific about what you observed.
+3. **Failure Reason** (only if task failed):
+   - "wm_failure": Failed due to unrealistic world model simulation (physics violations, object hallucinations, impossible motions)
+   - "vla_failure": Failed due to poor policy/action selection (robot made wrong actions, poor planning, didn't follow instruction)
+   - "success": Task completed successfully (use this if success is true)
+
+4. **Reasoning**: Provide 2-3 sentences explaining your evaluation. Be specific about what you observed.
 
 **Respond ONLY in valid JSON format:**
 ```json
 {{
   "success": true/false,
   "consistency": 0.0-1.0,
+  "failure_reason": "success" or "wm_failure" or "vla_failure",
   "reasoning": "Your explanation here..."
 }}
 ```
@@ -149,7 +173,7 @@ Do not include any text outside the JSON block."""
 
         return prompt
 
-    def _extract_frames(self, video_path: str, num_frames: int = 8) -> List[np.ndarray]:
+    def _extract_frames(self, video_path: str, num_frames: int = 16) -> List[np.ndarray]:
         """Extract evenly-spaced frames from video.
 
         Args:
@@ -188,8 +212,8 @@ Do not include any text outside the JSON block."""
         cap.release()
         return frames
 
-    def _call_gpt4v(self, frames: List[np.ndarray], prompt: str) -> str:
-        """Call GPT-4V API with video frames.
+    def _call_vlm(self, frames: List[np.ndarray], prompt: str) -> str:
+        """Call OpenAI VLM API with video frames.
 
         Args:
             frames: List of RGB frames
@@ -199,12 +223,7 @@ Do not include any text outside the JSON block."""
             GPT-4V response text
         """
         # Build message with images
-        messages = [
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": prompt}],
-            }
-        ]
+        message_content = [{"type": "input_text", "text": prompt}]
 
         # Add frames as base64-encoded images
         for frame in frames:
@@ -223,22 +242,110 @@ Do not include any text outside the JSON block."""
             img.save(buffer, format="JPEG", quality=85)
             img_b64 = base64.b64encode(buffer.getvalue()).decode()
 
-            messages[0]["content"].append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
-                }
+            message_content.append(
+                {"type": "input_image", "image_url": f"data:image/jpeg;base64,{img_b64}"}
             )
 
-        # API call
+        # API call (Responses API preferred)
+        if hasattr(self.client, "responses"):
+            response = self.client.responses.create(
+                model=self.model,
+                input=[{"role": "user", "content": message_content}],
+                max_output_tokens=500,
+                timeout=self.timeout,
+            )
+            text = self._extract_response_text(response)
+            if not text and self.fallback_model:
+                response = self.client.responses.create(
+                    model=self.fallback_model,
+                    input=[{"role": "user", "content": message_content}],
+                    max_output_tokens=500,
+                    timeout=self.timeout,
+                )
+                text = self._extract_response_text(response)
+            if not text:
+                raise RuntimeError("OpenAI response did not contain any text output.")
+            return text
+
+        # Fallback: chat.completions for older SDKs
         response = self.client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=messages,
+            model=self.model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        *[
+                            {"type": "image_url", "image_url": {"url": c["image_url"]}}
+                            for c in message_content[1:]
+                        ],
+                    ],
+                }
+            ],
             max_tokens=500,
             timeout=self.timeout,
         )
+        text = self._extract_response_text(response)
+        if not text and self.fallback_model:
+            response = self.client.chat.completions.create(
+                model=self.fallback_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            *[
+                                {"type": "image_url", "image_url": {"url": c["image_url"]}}
+                                for c in message_content[1:]
+                            ],
+                        ],
+                    }
+                ],
+                max_tokens=500,
+                timeout=self.timeout,
+            )
+            text = self._extract_response_text(response)
+        if not text:
+            raise RuntimeError("OpenAI response did not contain any text output.")
+        return text
 
-        return response.choices[0].message.content
+    def _extract_response_text(self, response) -> str:
+        """Extract text from different OpenAI SDK response shapes."""
+        if response is None:
+            return ""
+
+        text = getattr(response, "output_text", None)
+        if text:
+            return text
+
+        output = getattr(response, "output", None)
+        if isinstance(output, list):
+            texts = []
+            for item in output:
+                content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+                if isinstance(content, list):
+                    for part in content:
+                        part_text = part.get("text") if isinstance(part, dict) else getattr(part, "text", None)
+                        if part_text:
+                            texts.append(part_text)
+                elif isinstance(content, str):
+                    texts.append(content)
+            if texts:
+                return "\n".join(texts)
+
+        choices = getattr(response, "choices", None)
+        if choices:
+            first = choices[0]
+            if isinstance(first, dict):
+                msg = first.get("message")
+                if msg and msg.get("content"):
+                    return msg["content"]
+            else:
+                msg = getattr(first, "message", None)
+                if msg and getattr(msg, "content", None):
+                    return msg.content
+
+        return ""
 
     def _parse_response(self, response: str, task) -> EvalResult:
         """Parse GPT-4V response into EvalResult.
@@ -269,6 +376,7 @@ Do not include any text outside the JSON block."""
             success = result_dict.get("success", False)
             consistency = float(result_dict.get("consistency", 0.0))
             reasoning = result_dict.get("reasoning", "")
+            failure_reason = result_dict.get("failure_reason", "success" if success else "vla_failure")
 
         except (json.JSONDecodeError, ValueError) as e:
             print(f"Warning: Failed to parse JSON response: {e}")
@@ -278,6 +386,17 @@ Do not include any text outside the JSON block."""
             success = any(word in response.lower() for word in ["yes", "true", "successful", "completed"])
             consistency = 0.5  # Default medium consistency
             reasoning = response[:200]  # Take first 200 chars
+            failure_reason = "success" if success else "vla_failure"
+
+        # Ensure failure_reason is valid
+        if failure_reason not in ["success", "wm_failure", "vla_failure"]:
+            failure_reason = "success" if success else "vla_failure"
+
+        # Auto-correct failure_reason based on success
+        if success and failure_reason != "success":
+            failure_reason = "success"
+        elif not success and failure_reason == "success":
+            failure_reason = "vla_failure"  # Default to VLA failure if not specified
 
         # Compute reward
         reward = self._compute_reward(success, consistency)
@@ -288,6 +407,7 @@ Do not include any text outside the JSON block."""
             reward=reward,
             reasoning=reasoning,
             raw_response={"text": response},
+            failure_reason=failure_reason,
         )
 
     def _compute_reward(self, success: bool, consistency: float) -> float:
@@ -318,7 +438,7 @@ Do not include any text outside the JSON block."""
             Dictionary with evaluator info
         """
         return {
-            "vlm_model": "gpt-4-vision-preview",
+            "vlm_model": self.model,
             "max_retries": self.max_retries,
             "timeout": self.timeout,
         }
