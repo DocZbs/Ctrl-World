@@ -18,7 +18,7 @@ task_gen:
 retrieval:
   droid_path: "dataset_example/droid_subset"
   index_path: "experiments/droid_index.faiss"
-  clip_model_path: "openai/clip-vit-base-patch32"
+  clip_model_path: "/mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
   top_k: 5
   rebuild_index: false
 
@@ -26,16 +26,16 @@ retrieval:
 router:
   available_policies:
     - name: "pi05"
-      checkpoint: "/data1/zbs_files/data/HF/hub/models--pi05_droid/openpi-assets/checkpoints/pi05_droid"
+      checkpoint: "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid"
       action_space: "joint_vel"
   selection_strategy: "round_robin"
   ucb_coefficient: 1.0
 
 # Rollout Configuration
 rollout:
-  wm_ckpt: "/data1/zbs_files/data/HF/hub/models--yjguo--Ctrl-World/snapshots/8cf814693f411962dc866a2ddb5b785afd17a93a/checkpoint-10000.pt"
-  svd_model_path: "/data1/zbs_files/data/HF/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
-  clip_model_path: "/data1/zbs_files/data/HF/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
+  wm_ckpt: "/mnt/nvme-fast/huggingface/hub/models--yjguo--Ctrl-World/checkpoint-10000.pt"
+  svd_model_path: "/mnt/nvme-fast/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
+  clip_model_path: "/mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
   data_stat_path: "dataset_meta_info/droid/stat.json"
   max_steps: 50
   pred_step: 5

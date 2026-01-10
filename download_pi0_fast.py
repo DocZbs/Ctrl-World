@@ -12,12 +12,12 @@ sys.path.insert(0, str(openpi_path))
 from openpi.shared import download
 
 # Set download location (will create openpi-assets/checkpoints/pi0_fast_droid inside)
-os.environ['OPENPI_DATA_HOME'] = '/data1/zbs_files/data/HF/hub'
+os.environ['OPENPI_DATA_HOME'] = '/mnt/nvme-fast/huggingface/hub'
 
 print('='*70)
-print('Downloading pi0-droid checkpoint')
+print('Downloading pi0-fast-droid checkpoint')
 print('Size: ~19GB')
-print('Location: /data1/zbs_files/data/HF/hub/openpi-assets/checkpoints/')
+print('Location: /mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/')
 print('='*70)
 print()
 

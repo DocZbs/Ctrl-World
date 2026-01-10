@@ -56,9 +56,19 @@ class WorldModelWrapper:
         self.model.load_state_dict(checkpoint)
         del checkpoint  # Free memory
         torch.cuda.empty_cache()
-        # Move model to GPU
-        self.model.to(config.device)
+
+        # Disable gradient checkpointing for inference
+        if hasattr(self.model.unet, 'disable_gradient_checkpointing'):
+            self.model.unet.disable_gradient_checkpointing()
+
+        # Convert to bfloat16 for inference efficiency
+        self.model.to(dtype=args.dtype, device=config.device)
         self.model.eval()
+
+        # Set requires_grad to False for all parameters
+        for param in self.model.parameters():
+            param.requires_grad = False
+
         self.args = args
         self.device = config.device
         # Get dtype from the loaded model
@@ -222,6 +232,9 @@ class WorldModelWrapper:
         videos = ((videos / 2.0 + 0.5).clamp(0, 1))  # Normalize to [0, 1]
 
         # Convert to numpy: (3, 5, 3, H, W) -> (3, 5, H, W, 3) - same as rollout_interact_pi.py line 208
+        # Convert to float32 first if bfloat16 (numpy doesn't support bfloat16)
+        if videos.dtype == torch.bfloat16:
+            videos = videos.float()
         videos_np = videos.cpu().numpy().transpose(0, 1, 3, 4, 2)  # (3 views, 5 frames, H, W, 3)
         videos_np = (videos_np * 255).astype(np.uint8)  # Convert to uint8
 

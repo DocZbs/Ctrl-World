@@ -13,7 +13,7 @@ python "${ROOT_DIR}/scripts/run_all_droid_new_setup.py" \
     --config omni_ctrl/configs/omni_ctrl_pi05_batch.yaml \
     --ann-dir dataset_example/droid_new_setup/annotation/val \
     --droid-root dataset_example/droid_new_setup \
-    --out-base experiments/omni_ctrl_pi05_batch \
+    --out-base experiments/omni_ctrl_pi05_batch_myadapter \
     --iterations 1 \
     --skip-existing \
     "$@"

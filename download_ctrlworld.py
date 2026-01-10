@@ -18,7 +18,6 @@ print(f"Downloading Youyi-Kou/ctrl-world to {local_dir}...")
 try:
     path = snapshot_download(
         repo_id="Youyi-Kou/ctrl-world",
-        local_dir=local_dir,
         local_dir_use_symlinks=False,
         resume_download=True
     )

@@ -13,7 +13,7 @@
 
 This repo is the official PyTorch implementation for  [**Ctrl-World**](https://sites.google.com/view/ctrl-world) paper.
 
-**TL; DR:** Ctrl-World is an action-conditioned world model compatible with modern VLA policies and enables policy-in-the-loop rollouts entirely in imagination, which can be used to evaluate and improve the **instruction following** ability of VLA. 
+x**TL; DR:** Ctrl-World is an action-conditioned world model compatible with modern VLA policies and enables policy-in-the-loop rollouts entirely in imagination, which can be used to evaluate and improve the **instruction following** ability of VLA. 
 
 <p>
     <img src="synthetic_traj/gallery/ctrl_world.jpg" alt="wild-data" width="100%" />
@@ -61,7 +61,7 @@ GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 | [svd](https://huggingface.co/stabilityai/stable-video-diffusion-img2vid)  | Pretrained SVD video diffusion model   | ~8G    |
 | [Ctrl-World](https://huggingface.co/yjguo/Ctrl-World) |   Ctrl-World model trained on DROID dataset  | ~8G   |
 | [DROID Dataset](https://huggingface.co/datasets/cadene/droid_1.0.1) |   Opensourced DROID dataset, ~95k traj, 564 scene    |  ~370G  |
-
+huggingface-cli download cadene/droid_1.0.1 --repo-type dataset --local-dir ./droid_data
 
 <!-- **📊 Replay opensourced trajectory:** If you want to replay 
 

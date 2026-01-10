@@ -218,7 +218,6 @@ class agent():
         videos = videos.reshape(bsz,frame_num,*videos.shape[1:])
         videos = ((videos / 2.0 + 0.5).clamp(0, 1)*255)
         videos = videos.detach().to(torch.float32).cpu().numpy().transpose(0,1,3,4,2).astype(np.uint8)
-
         # concatenate true videos and video
         videos_cat = np.concatenate([true_video,videos],axis=-3) # (3, 8, 256, 256, 3)
         videos_cat = np.concatenate([video for video in videos_cat],axis=-2).astype(np.uint8) 
