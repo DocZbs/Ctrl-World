@@ -48,9 +48,63 @@ class Pi05Policy(BasePolicy):
         try:
             from openpi.training import config as config_pi
             from openpi.policies import policy_config
+            import openpi.models.pi0_config as pi0_config
+            from openpi.training.config import TrainConfig, LeRobotDROIDDataConfig, DataConfig, AssetsConfig
+            import openpi.training.weight_loaders as weight_loaders
+
+            # Register LoRA config if needed
+            def register_lora_config_if_needed():
+                config_names = [c.name for c in config_pi._CONFIGS]
+                if "pi05_droid_lora" not in config_names:
+                    model_config = pi0_config.Pi0Config(
+                        pi05=True,
+                        action_dim=32,
+                        action_horizon=16,
+                        paligemma_variant="gemma_2b_lora",
+                        action_expert_variant="gemma_300m_lora",
+                    )
+                    freeze_filter = pi0_config.Pi0Config(
+                        pi05=True,
+                        action_dim=32,
+                        action_horizon=16,
+                        paligemma_variant="gemma_2b_lora",
+                        action_expert_variant="gemma_300m_lora",
+                    ).get_freeze_filter()
+
+                    lora_config = TrainConfig(
+                        name="pi05_droid_lora",
+                        model=model_config,
+                        data=LeRobotDROIDDataConfig(
+                            repo_id="local/synthetic_pickplace_0002",
+                            base_config=DataConfig(prompt_from_task=True),
+                            assets=AssetsConfig(
+                                assets_dir="/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid_pytorch/assets",
+                                asset_id="droid",
+                            ),
+                        ),
+                        weight_loader=weight_loaders.CheckpointWeightLoader(
+                            "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid_pytorch/params"
+                        ),
+                        pytorch_weight_path="/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid_pytorch",
+                        freeze_filter=freeze_filter,
+                        num_train_steps=5000,
+                        batch_size=32,
+                        ema_decay=None,
+                    )
+                    config_pi._CONFIGS.append(lora_config)
+                    print(f"Registered pi05_droid_lora config for inference")
 
             # Get Pi0.5 DROID config
-            config = config_pi.get_config("pi05_droid")
+            checkpoint_path_obj = Path(checkpoint_path)
+            if "lora" in str(checkpoint_path_obj).lower():
+                register_lora_config_if_needed()
+                config = config_pi.get_config("pi05_droid_lora")
+                print(f"Using pi05_droid_lora config for LoRA checkpoint")
+            elif "finetune" in str(checkpoint_path_obj):
+                config = config_pi.get_config("pi05_droid_finetune")
+                print(f"Using pi05_droid_finetune config for finetuned checkpoint")
+            else:
+                config = config_pi.get_config("pi05_droid")
 
             # Create trained policy with specified device
             self.policy = policy_config.create_trained_policy(

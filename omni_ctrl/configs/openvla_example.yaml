@@ -1,8 +1,8 @@
 # Example configuration for using OpenVLA with DROID dataset
 # This shows how to configure OpenVLA policy to work with DROID observations
 
-experiment_name: "omni_ctrl_openvla"
-output_dir: "experiments/omni_ctrl_openvla"
+experiment_name: "openvla"
+output_dir: "experiments/openvla"
 num_iterations: 100
 seed: 42
 device: "cuda:0"

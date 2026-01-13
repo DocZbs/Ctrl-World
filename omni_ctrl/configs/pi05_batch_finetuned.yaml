@@ -1,7 +1,7 @@
 # Omni-Ctrl 配置 - 使用pi0.5策略批量运行
 
-experiment_name: "omni_ctrl_pi05_batch"
-output_dir: "experiments/omni_ctrl_pi05_batch"
+experiment_name: "pi05_batch"
+output_dir: "experiments/pi05_batch"
 num_iterations: 1
 seed: 42
 device: "cuda:0"
@@ -29,7 +29,7 @@ retrieval:
 router:
   available_policies:
     - name: "pi05"
-      checkpoint: "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid"
+      checkpoint: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/checkpoints/pi05_droid_lora/pickplace_lora_fixed/1000"
       action_space: "joint_vel"
   selection_strategy: "round_robin"
   sticky: true
@@ -44,7 +44,7 @@ rollout:
   pred_step: 5
   policy_skip_step: 2
   action_adapter_path: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/train_adapter/checkpoints/adapter_finetuned_best.pth"
-  device: "cuda:1"
+  device: "cuda:0"
 
 # Evaluation Configuration
 evaluation:

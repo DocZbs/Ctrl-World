@@ -1,31 +1,43 @@
-# Omni-Ctrl 测试配置（不需要 OpenAI API）
+# Omni-Ctrl 配置 - 使用指定场景
 
-experiment_name: "omni_ctrl_test"
-output_dir: "experiments/omni_ctrl_test"
+experiment_name: "fixed_scene"
+output_dir: "experiments/fixed_scene"
 num_iterations: 1
 seed: 42
 device: "cuda:0"
+
+# Fixed Scenario Configuration (跳过检索，直接使用指定场景)
+fixed_scenario:
+  enabled: true
+  annotation_path: "dataset_example/droid_new_setup/annotation/val/0001.json"
+  droid_root: "dataset_example/droid_new_setup"
 
 # Task Generation Configuration
 task_gen:
   type: "template"
   templates_path: "omni_ctrl/task_generation/templates.json"
-
-# Scenario Retrieval Configuration
+  
+# Scenario Retrieval Configuration (当 fixed_scenario.enabled=true 时会被忽略)
 retrieval:
   droid_path: "dataset_example/droid_subset"
   index_path: "experiments/droid_index.faiss"
   clip_model_path: "/mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
-  top_k: 5
+  top_k: 3
   rebuild_index: false
 
 # Policy Router Configuration
 router:
   available_policies:
-    - name: "pi05"
-      checkpoint: "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid"
-      action_space: "joint_vel"
-  selection_strategy: "round_robin"
+    # Only use OpenVLA for testing
+    - name: "openvla"
+      checkpoint: "/mnt/nvme-fast/huggingface/hub/models--openvla--openvla-7b"
+      action_space: "cartesian_delta"
+      unnorm_key: "bridge_orig"
+      use_wrist_camera: false  # Use exterior camera (DROID compatibility)
+      # image_key: "image_primary"  # Alternative to use_wrist_camera
+      prompt_template: "In: What action should the robot take to {instruction}?\nOut:"
+  selection_strategy: "round_robin"  # Only one policy, will always use OpenVLA
+  sticky: true
 
 # Rollout Configuration
 rollout:
@@ -33,22 +45,23 @@ rollout:
   svd_model_path: "/mnt/nvme-fast/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
   clip_model_path: "/mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
   data_stat_path: "dataset_meta_info/droid/stat.json"
-  max_steps: 20  # 增加到100步：100/5 = 20次循环 × 5帧 = 100帧 = 20秒
+  max_steps: 100
   pred_step: 5
   policy_skip_step: 2
   device: "cuda:1"
 
-# Evaluation Configuration - 使用 dummy 评估器进行测试
+# Evaluation Configuration
 evaluation:
-  vlm_type: "dummy"  # 使用 dummy 评估器，不需要 API
-  api_key: "not-needed"
+  vlm_type: "gpt-5.1"
+  vlm_model: "gpt-5.1"
+  api_key: "${OPENAI_API_KEY}"
   max_retries: 3
   timeout: 60
   success_weight: 1.0
   consistency_weight: 0.5
 
 # Skill Library
-skill_library_path: "experiments/omni_ctrl_test/skills"
+skill_library_path: "experiments/omni_ctrl_fixed_scene/skills"
 
 # Logging
 log_frequency: 1

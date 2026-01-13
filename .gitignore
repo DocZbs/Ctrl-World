@@ -18,3 +18,4 @@ experiments/
 droid_data/
 synthetic_data/
 train_adapter/
+checkpoints/

@@ -1,0 +1,16 @@
+I want to Use the data in /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/synthetic_data/pickplace_0002
+to finetune Pi0.5-droid in path way of /mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid
+you can use tne finetune pipeline in /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/openpi
+but the model in /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/checkpoints/pi05_droid_finetune/pickplace_0002_finetune turns out really bad.
+debug for me.
+
+
+
+1.13
+There might be something wrong with the /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/scripts/data_processing/generate_synthetic_trajectories.py
+the data It generates to finetune the pi05_droid vla really bad but I cant find where the bug is.
+I wanna u to check it for generate the same data just like /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/dataset_example/droid_new_setup that could be used for the finetune of vla.
+for each episode, I wanna u to use a vlm to label whether success and stop the video once succeed.
+Make sure the data u generate corresponde to the needs of finetune of pi05_droid.
+
+/ralph-wiggum:ralph-loop "There might be something wrong with the /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/scripts/data_processing/generate_synthetic_trajectories.py the data It generates to finetune the pi05_droid vla really bad but I cant find where the bug is. I wanna u to check it for generate the same data just like /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/dataset_example/droid_new_setup that could be used for the finetune of vla. for each episode, I wanna u to use a vlm to label whether success and stop the video once succeed. Make sure the data u generate corresponde to the needs of finetune of pi05_droid." --max-iterations 20

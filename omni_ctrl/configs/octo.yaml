@@ -1,8 +1,8 @@
 # Example configuration for using Octo with DROID dataset
 # Octo is a transformer-based diffusion policy pretrained on 800k+ robot trajectories
 
-experiment_name: "omni_ctrl_octo"
-output_dir: "experiments/omni_ctrl_octo"
+experiment_name: "octo"
+output_dir: "experiments/octo"
 num_iterations: 1  # Will be overridden by batch script
 seed: 42
 device: "cuda:7"  # Main device for orchestrator
