@@ -780,59 +780,111 @@ class SyntheticDataGenerator:
         output_dir: Path,
         start_idx: int = 0,
     ):
-        """Save trajectories in droid_new_setup format
+        """Save trajectories in LeRobot format (compatible with droid_data)
 
         Args:
             trajectories: List of trajectories
             output_dir: Output directory
             start_idx: Starting episode index
         """
+        import pandas as pd
+
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create directory structure like droid_new_setup
-        annotation_dir = output_dir / 'annotation' / 'synthetic'
-        videos_dir = output_dir / 'videos' / 'synthetic'
-        annotation_dir.mkdir(parents=True, exist_ok=True)
+        # Create directory structure like droid_data
+        data_dir = output_dir / 'data' / 'chunk-000'
+        videos_dir = output_dir / 'videos' / 'chunk-000'
+        data_dir.mkdir(parents=True, exist_ok=True)
         videos_dir.mkdir(parents=True, exist_ok=True)
 
         for idx, traj in enumerate(tqdm(trajectories, desc="Saving trajectories")):
-            episode_id = f"{start_idx + idx:04d}"
+            episode_idx = start_idx + idx
+            num_frames = len(traj.images_view0)
 
-            # Save 3 videos (3 camera views)
-            video_subdir = videos_dir / episode_id
-            video_subdir.mkdir(exist_ok=True)
+            # Save videos for 3 camera views
+            video_dirs = {
+                'observation.images.exterior_1_left': videos_dir / 'observation.images.exterior_1_left',
+                'observation.images.exterior_2_left': videos_dir / 'observation.images.exterior_2_left',
+                'observation.images.wrist_left': videos_dir / 'observation.images.wrist_left',
+            }
+            for vdir in video_dirs.values():
+                vdir.mkdir(parents=True, exist_ok=True)
 
             if traj.images_view0:
-                mediapy.write_video(str(video_subdir / '0.mp4'), traj.images_view0, fps=10)
+                mediapy.write_video(
+                    str(video_dirs['observation.images.exterior_1_left'] / f'episode_{episode_idx:06d}.mp4'),
+                    traj.images_view0, fps=10
+                )
             if traj.images_view1:
-                mediapy.write_video(str(video_subdir / '1.mp4'), traj.images_view1, fps=10)
+                mediapy.write_video(
+                    str(video_dirs['observation.images.exterior_2_left'] / f'episode_{episode_idx:06d}.mp4'),
+                    traj.images_view1, fps=10
+                )
             if traj.images_view2:
-                mediapy.write_video(str(video_subdir / '2.mp4'), traj.images_view2, fps=10)
+                mediapy.write_video(
+                    str(video_dirs['observation.images.wrist_left'] / f'episode_{episode_idx:06d}.mp4'),
+                    traj.images_view2, fps=10
+                )
 
-            # Create annotation in droid_new_setup format
-            annotation = {
-                'texts': [traj.task_instruction],
-                'episode_id': episode_id,
-                'success': 1 if traj.success else 0,
-                'video_length': len(traj.images_view0),
-                'videos': [
-                    {'video_path': f'videos/synthetic/{episode_id}/0.mp4'},
-                    {'video_path': f'videos/synthetic/{episode_id}/1.mp4'},
-                    {'video_path': f'videos/synthetic/{episode_id}/2.mp4'},
-                ],
-                'states': traj.cartesian_poses,
-                'joints': traj.joint_positions,
-            }
+            # Create parquet file with frame-level data
+            episode_data = []
+            for frame_idx in range(num_frames):
+                # Convert joints to proper format
+                joints = traj.joint_positions[frame_idx]
+                state = traj.cartesian_poses[frame_idx]
 
-            # Save annotation
-            annotation_path = annotation_dir / f'{episode_id}.json'
-            with open(annotation_path, 'w') as f:
-                json.dump(annotation, f, indent=2)
+                # Action is next joint position
+                if frame_idx < num_frames - 1:
+                    action_joints = traj.joint_positions[frame_idx + 1]
+                else:
+                    action_joints = joints
+
+                frame_data = {
+                    'is_first': frame_idx == 0,
+                    'is_last': frame_idx == num_frames - 1,
+                    'is_terminal': frame_idx == num_frames - 1,
+                    'language_instruction': traj.task_instruction,
+                    'language_instruction_2': '',
+                    'language_instruction_3': '',
+                    'observation.state.gripper_position': float(joints[-1]) if len(joints) > 0 else 0.0,
+                    'observation.state.cartesian_position': state[:3] if len(state) >= 3 else [0.0, 0.0, 0.0],
+                    'observation.state.joint_position': joints.tolist() if hasattr(joints, 'tolist') else list(joints),
+                    'observation.state': state.tolist() if hasattr(state, 'tolist') else list(state),
+                    'action.gripper_position': float(action_joints[-1]) if len(action_joints) > 0 else 0.0,
+                    'action.gripper_velocity': 0.0,
+                    'action.cartesian_position': [0.0, 0.0, 0.0],
+                    'action.cartesian_velocity': [0.0, 0.0, 0.0],
+                    'action.joint_position': action_joints.tolist() if hasattr(action_joints, 'tolist') else list(action_joints),
+                    'action.joint_velocity': [0.0] * len(action_joints),
+                    'action.original': action_joints.tolist() if hasattr(action_joints, 'tolist') else list(action_joints),
+                    'actions': action_joints.tolist() if hasattr(action_joints, 'tolist') else list(action_joints),
+                    'discount': 1.0,
+                    'reward': 1.0 if (traj.success and frame_idx == num_frames - 1) else 0.0,
+                    'task_category': 'manipulation',
+                    'building': 'synthetic',
+                    'collector_id': 'ctrl_world',
+                    'date': '2026-01-13',
+                    'camera_extrinsics.wrist_left': [0.0] * 16,
+                    'camera_extrinsics.exterior_1_left': [0.0] * 16,
+                    'camera_extrinsics.exterior_2_left': [0.0] * 16,
+                    'is_episode_successful': traj.success,
+                    'timestamp': float(frame_idx) / 10.0,
+                    'frame_index': frame_idx,
+                    'episode_index': episode_idx,
+                    'index': frame_idx,
+                    'task_index': 0,
+                }
+                episode_data.append(frame_data)
+
+            # Save as parquet
+            df = pd.DataFrame(episode_data)
+            parquet_path = data_dir / f'episode_{episode_idx:06d}.parquet'
+            df.to_parquet(parquet_path, engine='pyarrow', compression='snappy')
 
         print(f"✓ Saved {len(trajectories)} trajectories to {output_dir}")
-        print(f"  Format: Compatible with droid_new_setup for Pi05 DROID finetuning")
-        print(f"  - Annotations: {annotation_dir}/*.json")
-        print(f"  - Videos: {videos_dir}/*/{{0,1,2}}.mp4")
+        print(f"  Format: LeRobot format (compatible with droid_data)")
+        print(f"  - Data: {data_dir}/episode_*.parquet")
+        print(f"  - Videos: {videos_dir}/observation.images.*/episode_*.mp4")
 
 
 def load_initial_observation(annotation_path: str, dataset_root: str) -> Dict[str, Any]:

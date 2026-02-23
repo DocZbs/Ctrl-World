@@ -12,7 +12,7 @@ NUM_ROLLOUTS=100
 MAX_STEPS=30
 
 
-# Run generation
+# Run generation (both models on cuda:1)
 python scripts/data_processing/generate_synthetic_trajectories.py \
     --annotation-file "$ANNOTATION_FILE" \
     --dataset-root "$DATASET_ROOT" \
@@ -20,7 +20,9 @@ python scripts/data_processing/generate_synthetic_trajectories.py \
     --output-dir "$OUTPUT_DIR" \
     --no-vlm \
     --max-steps "$MAX_STEPS" \
-    --save-every 1
+    --save-every 1 \
+    --wm-device cuda:0 \
+    --policy-device cuda:1
 
 
 

@@ -114,7 +114,8 @@ class Pi05Policy(BasePolicy):
             )
             self.device = device
             self.action_buffer = []
-            self.action_chunk_size = 10
+            # ctrl-world's dynamics adapter expects 15-step chunks (see rollout_interact_pi.py).
+            self.action_chunk_size = 15
             self.policy_type = policy_type
             self.pred_step = pred_step
             self.policy_skip_step = policy_skip_step
@@ -171,7 +172,7 @@ class Pi05Policy(BasePolicy):
         if len(self.action_buffer) > 0:
             return self.action_buffer.pop(0)
 
-        action_chunk = self.predict_chunk(obs, task_instruction, chunk_size=10)
+        action_chunk = self.predict_chunk(obs, task_instruction, chunk_size=self.action_chunk_size)
         if action_chunk is None or len(action_chunk) == 0:
             return np.zeros(8, dtype=np.float32)
 
@@ -208,6 +209,15 @@ class Pi05Policy(BasePolicy):
 
             if isinstance(action_chunk, torch.Tensor):
                 action_chunk = action_chunk.cpu().numpy()
+
+            action_chunk = np.asarray(action_chunk)
+            if action_chunk.ndim == 1:
+                action_chunk = action_chunk[None, :]
+            if action_chunk.shape[0] != chunk_size:
+                if action_chunk.shape[0] < chunk_size:
+                    pad = np.repeat(action_chunk[-1][None, :], chunk_size - action_chunk.shape[0], axis=0)
+                    action_chunk = np.concatenate([action_chunk, pad], axis=0)
+                action_chunk = action_chunk[:chunk_size]
 
             return action_chunk
 

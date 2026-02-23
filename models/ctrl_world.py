@@ -113,8 +113,18 @@ class CrtlWorld(nn.Module):
 
         self.args = args
 
+        offline = os.environ.get("HF_HUB_OFFLINE", "0") == "1" or os.environ.get("TRANSFORMERS_OFFLINE", "0") == "1"
+        cache_dir = getattr(args, "hf_cache_dir", None) or os.environ.get("HF_HUB_CACHE") or os.environ.get("HF_HOME")
+        # Common local cache on this repo's machines.
+        if cache_dir is None and os.path.isdir("/mnt/nvme-fast/huggingface/hub"):
+            cache_dir = "/mnt/nvme-fast/huggingface/hub"
+
         # load from pretrained stable video diffusion
-        self.pipeline = StableVideoDiffusionPipeline.from_pretrained(args.svd_model_path)
+        self.pipeline = StableVideoDiffusionPipeline.from_pretrained(
+            args.svd_model_path,
+            cache_dir=cache_dir,
+            local_files_only=offline,
+        )
         # repalce the unet to support frame_level pose condition
         print("replace the unet to support action condition and frame_level pose!")
         unet = UNetSpatioTemporalConditionModel()
@@ -134,8 +144,17 @@ class CrtlWorld(nn.Module):
 
         # SVD is a img2video model, load a clip text encoder
         from transformers import AutoTokenizer, CLIPTextModelWithProjection
-        self.text_encoder = CLIPTextModelWithProjection.from_pretrained(args.clip_model_path)
-        self.tokenizer = AutoTokenizer.from_pretrained(args.clip_model_path,use_fast=False)
+        self.text_encoder = CLIPTextModelWithProjection.from_pretrained(
+            args.clip_model_path,
+            cache_dir=cache_dir,
+            local_files_only=offline,
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            args.clip_model_path,
+            use_fast=False,
+            cache_dir=cache_dir,
+            local_files_only=offline,
+        )
         self.text_encoder.requires_grad_(False)
 
         # initialize an action projector

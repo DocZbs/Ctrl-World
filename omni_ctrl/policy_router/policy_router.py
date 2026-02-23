@@ -139,6 +139,17 @@ class PolicyRouter:
         count = self.stats[name]["count"]
         self.stats[name]["avg_reward"] = self.stats[name]["total_reward"] / max(count, 1.0)
 
+    def get_available_policy_names(self) -> list:
+        """Return list of available normalized policy names."""
+        return list(self._policy_names)
+
+    def get_policy_by_name(self, name: str):
+        """Get a specific policy by name (will be normalized)."""
+        name = self._normalize_name(name)
+        if name not in self._policy_names:
+            raise ValueError(f"Unknown policy: {name}")
+        return self._get_policy(name)
+
     def reset(self) -> None:
         for policy in self._policies.values():
             policy.reset()

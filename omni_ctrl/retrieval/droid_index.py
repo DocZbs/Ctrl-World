@@ -160,6 +160,40 @@ class DROIDIndex:
         print(f"Index built successfully with {index.ntotal} vectors")
         return cls(index, metadata, text_encoder)
 
+    def search_with_scores(self, query_text: str, top_k: int = 20):
+        """Search and return scenarios with similarity scores.
+
+        Args:
+            query_text: Natural language query
+            top_k: Number of candidates
+
+        Returns:
+            Tuple of (List[DROIDScenario], np.ndarray of similarity scores).
+            Similarities are negated L2 distances (higher = more similar).
+        """
+        query_emb = self.text_encoder(query_text).astype("float32").reshape(1, -1)
+        actual_k = min(top_k, self.index.ntotal)
+        distances, indices = self.index.search(query_emb, actual_k)
+
+        # Convert L2 distances to similarity (negate so higher = better)
+        similarities = -distances[0]
+
+        scenarios = []
+        valid_sims = []
+        for rank, idx in enumerate(indices[0]):
+            if idx < 0 or idx >= len(self.metadata):
+                continue
+            meta = self.metadata[idx]
+            try:
+                scenario = self._build_scenario(meta)
+                scenarios.append(scenario)
+                valid_sims.append(similarities[rank])
+            except Exception as e:
+                print(f"Warning: Failed to load scenario {meta['episode_id']}: {e}")
+                continue
+
+        return scenarios, np.array(valid_sims, dtype=np.float32)
+
     def search(self, query_text: str, top_k: int = 5) -> List[DROIDScenario]:
         """Search for relevant scenarios using text query.
 
@@ -180,74 +214,75 @@ class DROIDIndex:
         for idx in indices[0]:
             if idx < 0 or idx >= len(self.metadata):
                 continue
-
             meta = self.metadata[idx]
-
             try:
-                # Load initial state from latent if available
-                latent_path = Path(meta["latent_path"])
-                if latent_path.exists() and latent_path.is_dir():
-                    # Load all 3 camera views and concatenate (DROID has 3 camera views)
-                    latent_files = [latent_path / f"{i}.pt" for i in range(3)]
-                    if all(f.exists() for f in latent_files):
-                        latents = [torch.load(f) for f in latent_files]
-                        # Concatenate along height dimension (dim=2): (89, 4, 24, 40) x3 -> (89, 4, 72, 40)
-                        combined_latent = torch.cat(latents, dim=2)
-                        initial_frames = combined_latent[:6].numpy()  # First 6 frames as history (6, 4, 72, 40)
-                    else:
-                        initial_frames = np.zeros((6, 4, 72, 40))  # Placeholder with correct shape
-                elif latent_path.exists() and latent_path.is_file():
-                    # Handle case where it's a single file (legacy support)
-                    latent = torch.load(latent_path)
-                    if isinstance(latent, torch.Tensor):
-                        # Assume already concatenated
-                        initial_frames = latent[:6].numpy()
-                    else:
-                        initial_frames = np.zeros((6, 4, 72, 40))
-                else:
-                    initial_frames = np.zeros((6, 4, 72, 40))  # Placeholder with correct shape
-
-                # Extract initial state
-                cart_pos = meta.get("cartesian_position", [])
-                joint_pos = meta.get("joint_position", [])
-
-                # Ensure we have 7-dim cartesian state and joint positions
-                if cart_pos and len(cart_pos) > 0:
-                    initial_state = np.array(cart_pos[0])
-                    # Ensure it's 7-dim (xyz, rpy, gripper)
-                    if len(initial_state) < 7:
-                        initial_state = np.pad(initial_state, (0, 7 - len(initial_state)))
-                    elif len(initial_state) > 7:
-                        initial_state = initial_state[:7]
-                else:
-                    initial_state = np.array([0.0] * 7)
-
-                if joint_pos and len(joint_pos) > 0:
-                    initial_joints = np.array(joint_pos[0])
-                    # Ensure it's 7-dim
-                    if len(initial_joints) < 7:
-                        initial_joints = np.pad(initial_joints, (0, 7 - len(initial_joints)))
-                    elif len(initial_joints) > 7:
-                        initial_joints = initial_joints[:7]
-                else:
-                    initial_joints = np.array([0.0] * 7)
-
-                scenario = DROIDScenario(
-                    episode_id=meta["episode_id"],
-                    initial_frames=initial_frames,
-                    initial_state=initial_state,
-                    initial_joints=initial_joints,
-                    instruction=meta["instruction"],
-                    video_path=meta["video_path"],
-                    latent_path=meta["latent_path"],
-                )
+                scenario = self._build_scenario(meta)
                 scenarios.append(scenario)
-
             except Exception as e:
                 print(f"Warning: Failed to load scenario {meta['episode_id']}: {e}")
                 continue
 
         return scenarios
+
+    def _build_scenario(self, meta: dict) -> DROIDScenario:
+        """Build a DROIDScenario from metadata dict.
+
+        Args:
+            meta: Metadata dictionary for one episode
+
+        Returns:
+            DROIDScenario instance
+        """
+        # Load initial state from latent if available
+        latent_path = Path(meta["latent_path"])
+        if latent_path.exists() and latent_path.is_dir():
+            latent_files = [latent_path / f"{i}.pt" for i in range(3)]
+            if all(f.exists() for f in latent_files):
+                latents = [torch.load(f) for f in latent_files]
+                combined_latent = torch.cat(latents, dim=2)
+                initial_frames = combined_latent[:6].numpy()
+            else:
+                initial_frames = np.zeros((6, 4, 72, 40))
+        elif latent_path.exists() and latent_path.is_file():
+            latent = torch.load(latent_path)
+            if isinstance(latent, torch.Tensor):
+                initial_frames = latent[:6].numpy()
+            else:
+                initial_frames = np.zeros((6, 4, 72, 40))
+        else:
+            initial_frames = np.zeros((6, 4, 72, 40))
+
+        # Extract initial state
+        cart_pos = meta.get("cartesian_position", [])
+        joint_pos = meta.get("joint_position", [])
+
+        if cart_pos and len(cart_pos) > 0:
+            initial_state = np.array(cart_pos[0])
+            if len(initial_state) < 7:
+                initial_state = np.pad(initial_state, (0, 7 - len(initial_state)))
+            elif len(initial_state) > 7:
+                initial_state = initial_state[:7]
+        else:
+            initial_state = np.array([0.0] * 7)
+
+        if joint_pos and len(joint_pos) > 0:
+            initial_joints = np.array(joint_pos[0])
+            if len(initial_joints) < 7:
+                initial_joints = np.pad(initial_joints, (0, 7 - len(initial_joints)))
+            elif len(initial_joints) > 7:
+                initial_joints = initial_joints[:7]
+        else:
+            initial_joints = np.array([0.0] * 7)
+
+        return DROIDScenario(
+            episode_id=meta["episode_id"],
+            initial_frames=initial_frames,
+            initial_state=initial_state,
+            initial_joints=initial_joints,
+            instruction=meta["instruction"],
+            video_path=meta["video_path"],
+            latent_path=meta["latent_path"],
+        )
 
     def save(self, save_path: str):
         """Save index to disk.

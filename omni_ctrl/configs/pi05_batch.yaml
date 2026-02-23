@@ -4,7 +4,7 @@ experiment_name: "pi05_batch"
 output_dir: "experiments/pi05_batch"
 num_iterations: 1
 seed: 42
-device: "cuda:1"
+device: "cuda:0"
 
 # Fixed Scenario Configuration (跳过检索，直接使用指定场景)
 fixed_scenario:
@@ -43,7 +43,7 @@ rollout:
   max_steps: 100
   pred_step: 5
   policy_skip_step: 2
-  action_adapter_path: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/train_adapter/checkpoints/adapter_finetuned_best.pth"
+  action_adapter_path: "models/action_adapter/model2_15_9.pth"
   device: "cuda:1"
 
 # Evaluation Configuration

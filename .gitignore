@@ -1,4 +1,4 @@
-*__pycache__*
+111*__pycache__*
 wandb*
 swanlog*
 output*
@@ -10,7 +10,7 @@ video_models_logs*
 model_ckpt*
 synthetic_traj*
 dataset_example/droid_subset/annotation/val_old*
-data/
+data3/
 openpi/
 experiments/
 *pt
@@ -19,3 +19,6 @@ droid_data/
 synthetic_data/
 train_adapter/
 checkpoints/
+lerobot_datasets/
+*.pyc
+*.txt

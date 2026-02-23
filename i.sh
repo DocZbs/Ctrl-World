@@ -1,5 +1,5 @@
-python scripts/run_all_droid_new_setup.py \
-    --config omni_ctrl/configs/omni_ctrl_pi05_batch.yaml \
-    --ann-dir dataset_example/droid_subset/annotation/train \
-    --droid-root dataset_example/droid_subset \
-    --out-base experiments/droid_subset_pi05_train
+CTRLWORLD_POLICY_WARMUP=0 \
+XLA_PYTHON_CLIENT_PREALLOCATE=false \
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.20 \
+XLA_PYTHON_CLIENT_ALLOCATOR=platform \
+python nexus/run_nexus.py --config nexus/configs/droid_data_main_chunk000_009_iter3.yaml

@@ -10,7 +10,7 @@ class wm_args:
     # model paths
     svd_model_path = "/mnt/nvme-fast/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
     clip_model_path = "/mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
-    ckpt_path = '/mnt/nvme-fast/huggingface/hub/models--yjguo--Ctrl-World/checkpoint-10000.pt'
+    ckpt_path = '/mnt/nvme-fast/huggingface/hub/models--yjguo--Ctrl-World/snapshots/8cf814693f411962dc866a2ddb5b785afd17a93a/checkpoint-10000.pt'
     pi_ckpt = '/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid'
 
     # dataset parameters

@@ -1,5 +1,6 @@
 """DROID scenario retriever."""
 
+import numpy as np
 from pathlib import Path
 from .droid_index import DROIDIndex, DROIDScenario
 
@@ -87,3 +88,59 @@ class DROIDRetriever:
             top_k = self.config.top_k
 
         return self.index.search(task.instruction, top_k=top_k)
+
+    def retrieve_with_temperature(
+        self,
+        task,
+        temperature: float = 0.1,
+        top_k_candidates: int = 20,
+        excluded_episode_ids: list = None,
+    ) -> DROIDScenario:
+        """Temperature-scaled softmax sampling over CLIP similarities.
+
+        Implements p_rho(i|l) = softmax(sim(e_l, e_o) / tau) from the paper.
+        Samples one scenario from the distribution rather than taking argmax.
+
+        Args:
+            task: Task object with instruction
+            temperature: tau parameter for softmax scaling (lower = more peaked)
+            top_k_candidates: number of candidates to retrieve before sampling
+            excluded_episode_ids: episode IDs to exclude (for scene resampling)
+
+        Returns:
+            Sampled DROIDScenario
+        """
+        scenarios, similarities = self.index.search_with_scores(
+            task.instruction, top_k=top_k_candidates
+        )
+
+        if not scenarios:
+            raise ValueError(f"No scenarios found for task: {task.instruction}")
+
+        # Filter out excluded episodes
+        if excluded_episode_ids:
+            excluded_set = set(excluded_episode_ids)
+            filtered = [
+                (s, sim) for s, sim in zip(scenarios, similarities)
+                if s.episode_id not in excluded_set
+            ]
+            if not filtered:
+                # All candidates excluded; fall back to unfiltered
+                print("Warning: All candidate scenes excluded, using unfiltered set")
+            else:
+                scenarios, similarities = zip(*filtered)
+                scenarios = list(scenarios)
+                similarities = np.array(similarities, dtype=np.float32)
+
+        # Temperature-scaled softmax sampling
+        if temperature <= 0:
+            temperature = 1e-8
+        logits = similarities / temperature
+        # Numerical stability: subtract max before exp
+        logits = logits - logits.max()
+        probs = np.exp(logits)
+        probs = probs / probs.sum()
+
+        # Sample from the distribution
+        idx = np.random.choice(len(scenarios), p=probs)
+        return scenarios[idx]

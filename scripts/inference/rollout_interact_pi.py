@@ -301,6 +301,8 @@ if __name__ == "__main__":
     parser.add_argument('--dataset_meta_info_path', type=str, default=None)
     parser.add_argument('--dataset_names', type=str, default=None)
     parser.add_argument('--task_type', type=str, default=None)
+    # Keep default behavior if not set (uses config.py wm_args.policy_type).
+    parser.add_argument('--policy_type', type=str, default=None)
     parser.add_argument('--pi_ckpt', type=str, default='/cephfs/shared/llm/openpi/openpi-assets-preview/checkpoints/pi05_droid')
     args_new = parser.parse_args()
 

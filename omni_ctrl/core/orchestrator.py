@@ -1,17 +1,18 @@
 """Main orchestrator for Omni-Ctrl self-evolution loop."""
 
 import random
-import numpy as np
-import torch
+import os
+import sys
+from datetime import datetime
 from pathlib import Path
-from tqdm import tqdm
+import logging
 from typing import Optional, Tuple
+
 import cv2
 import imageio
-import sys
-import logging
-from datetime import datetime
-import shutil
+import numpy as np
+import torch
+from tqdm import tqdm
 import yaml
 
 from ..task_generation.template_generator import TemplateTaskGenerator
@@ -22,8 +23,10 @@ from .episode import Episode
 from .skill_library import SkillLibrary
 
 # Import dynamics model and FK solver
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from models.action_adapter.train2 import Dynamics
 from models.utils import get_fk_solution
 from scipy.spatial.transform import Rotation as R
@@ -142,6 +145,45 @@ class OmniCtrlOrchestrator:
         print("Initialization complete!")
         print("=" * 60 + "\n")
 
+    @staticmethod
+    def _infer_view_role(video_path: str) -> Optional[str]:
+        """Infer camera role from a video_path string.
+
+        Returns one of: "exterior_1", "exterior_2", "wrist", or None if unknown.
+        """
+        p = (video_path or "").lower()
+        if "wrist" in p:
+            return "wrist"
+        if "exterior_1" in p or "exterior-1" in p or "exterior1" in p:
+            return "exterior_1"
+        if "exterior_2" in p or "exterior-2" in p or "exterior2" in p:
+            return "exterior_2"
+        return None
+
+    @classmethod
+    def _ordered_cam_indices_from_anno(cls, anno: dict) -> list[int]:
+        """Return cam indices ordered as [exterior_1, exterior_2, wrist]."""
+        videos = anno.get("videos") or []
+        if not isinstance(videos, list) or len(videos) < 3:
+            return [0, 1, 2]
+
+        role_to_idx: dict[str, int] = {}
+        for i, v in enumerate(videos[:3]):
+            vp = (v or {}).get("video_path", "")
+            role = cls._infer_view_role(vp)
+            if role and role not in role_to_idx:
+                role_to_idx[role] = i
+
+        ordered = [
+            role_to_idx.get("exterior_1", 0),
+            role_to_idx.get("exterior_2", 1),
+            role_to_idx.get("wrist", 2),
+        ]
+        if len(set(ordered)) != 3:
+            # Fallback to annotation order if we failed to identify unique roles.
+            return [0, 1, 2]
+        return ordered
+
     def _save_config(self):
         """Save configuration to output directory."""
         config_path = self.output_dir / "config.yaml"
@@ -235,6 +277,7 @@ class OmniCtrlOrchestrator:
 
         episode_id = anno["episode_id"]
         instruction = anno["texts"][0] if anno.get("texts") else ""
+        cam_order = self._ordered_cam_indices_from_anno(anno)
 
         # Load latent videos
         latent_dir = Path(droid_root) / "latent_videos"
@@ -248,7 +291,7 @@ class OmniCtrlOrchestrator:
         latent_path = latent_dir / split / str(episode_id)
 
         # Load and concatenate 3 camera views
-        latent_files = [latent_path / f"{i}.pt" for i in range(3)]
+        latent_files = [latent_path / f"{i}.pt" for i in cam_order]
         if all(f.exists() for f in latent_files):
             latents = [torch.load(f) for f in latent_files]
             # Concatenate along height dimension: (T, 4, 24, 40) x3 -> (T, 4, 72, 40)
@@ -260,7 +303,7 @@ class OmniCtrlOrchestrator:
         # Load real RGB frames from video files
         # Try mediapy first (better compatibility), fall back to decord
         real_video_frames = []
-        for cam_id in range(3):
+        for cam_id in cam_order:
             video_path = Path(droid_root) / anno["videos"][cam_id]["video_path"]
             try:
                 # Try mediapy (better codec support)
@@ -275,7 +318,10 @@ class OmniCtrlOrchestrator:
                     first_frame = vr.get_batch([0]).asnumpy()[0]  # (H, W, 3)
                 except:
                     first_frame = vr.get_batch([0]).numpy()[0]  # (H, W, 3)
-            real_video_frames.append(first_frame)
+            first_frame = np.asarray(first_frame)
+            if np.issubdtype(first_frame.dtype, np.floating):
+                first_frame = (np.clip(first_frame, 0.0, 1.0) * 255).astype(np.uint8)
+            real_video_frames.append(first_frame.astype(np.uint8, copy=False))
 
         # Get initial cartesian state (7,)
         states = anno.get("states", [])
@@ -316,6 +362,8 @@ class OmniCtrlOrchestrator:
 
         print(f"  Loaded fixed scenario: {episode_id}")
         print(f"  Instruction: {instruction}")
+        if cam_order != [0, 1, 2]:
+            print(f"  Camera order (ext1, ext2, wrist): {cam_order}")
         print(f"  Initial frames shape: {initial_frames.shape}")
 
         return scenario
@@ -451,10 +499,24 @@ class OmniCtrlOrchestrator:
         # Rollout parameters
         max_steps = self.config.rollout.max_steps
         pred_step = self.config.rollout.pred_step
+        policy_skip_step = int(getattr(self.config.rollout, "policy_skip_step", 1))
         rollout_instruction = scenario.instruction if self.use_fixed_scenario else task.instruction
 
         frames_collected = []
         current_camera_views = None  # Will be set after first world model step
+
+        if policy.action_space == "joint_vel" and self.dynamics_model is None:
+            self.logger.warning(
+                "Action adapter is missing; joint_vel actions will become zero cartesian conditioning."
+            )
+
+        # The dynamics adapter is trained for 15 steps; warn if pred_step/skip would require more.
+        required = 1 + max(0, pred_step - 1) * max(policy_skip_step, 1)
+        if required > 15:
+            self.logger.warning(
+                f"rollout.pred_step={pred_step} with rollout.policy_skip_step={policy_skip_step} "
+                f"requires {required} steps (>15); cartesian sequence will be padded/repeated."
+            )
 
         for step in range(0, max_steps, pred_step):
             # For first step, use initial scenario images by decoding latent
@@ -475,6 +537,8 @@ class OmniCtrlOrchestrator:
 
             # Policy predicts action chunk
             action_chunk = self._infer_action_chunk(policy, obs, rollout_instruction, pred_step)
+            if np.allclose(action_chunk[:, :7], 0.0, atol=1e-6):
+                self.logger.warning(f"Policy returned near-zero joint velocities at step={step}.")
 
             # Convert to cartesian action sequence for world model
             if policy.action_space == "joint_vel":
@@ -491,6 +555,20 @@ class OmniCtrlOrchestrator:
                 action_seq = self._joint_pos_to_cartesian_seq(joint_pos_seq)
             else:
                 raise ValueError(f"Unsupported action space: {policy.action_space}")
+
+            # Final shape guards (avoid silent shape drift).
+            action_seq = np.asarray(action_seq, dtype=np.float32)
+            if action_seq.ndim != 2 or action_seq.shape[1] != 7:
+                raise ValueError(f"action_seq must be (pred_step, 7), got {action_seq.shape}")
+            if action_seq.shape[0] != pred_step:
+                action_seq = self._pad_or_trim_seq(action_seq, pred_step)
+
+            if joint_pos_seq is not None:
+                joint_pos_seq = np.asarray(joint_pos_seq, dtype=np.float32)
+                if joint_pos_seq.ndim != 2 or joint_pos_seq.shape[1] != 8:
+                    raise ValueError(f"joint_pos_seq must be (pred_step, 8), got {joint_pos_seq.shape}")
+                if joint_pos_seq.shape[0] != pred_step:
+                    joint_pos_seq = self._pad_or_trim_seq(joint_pos_seq, pred_step)
 
             # World model step (returns all pred_step frames and camera views)
             next_latent, next_frames, camera_views = self.world_model.step(
@@ -545,28 +623,37 @@ class OmniCtrlOrchestrator:
         Returns:
             Observation dictionary for policy
         """
-        # Following rollout_interact_pi.py line 230-246:
-        # - videos[1] = exterior camera (camera 1)
-        # - videos[2] = wrist camera (camera 2)
+        camera_views = np.asarray(camera_views)
+        if camera_views.ndim != 4 or camera_views.shape[0] < 3 or camera_views.shape[-1] != 3:
+            raise ValueError(f"camera_views must be (3,H,W,3), got {camera_views.shape}")
+
+        # Follow scripts/inference/rollout_interact_pi.py forward_policy():
+        # - use videos[1] as the exterior policy view
+        # - use videos[2] as the wrist policy view
+        #
+        # Note: in dataset_example/droid_new_setup annotations, video files are numbered (0/1/2.mp4),
+        # so we must respect this convention rather than guessing camera semantics.
         image_exterior = camera_views[1]  # (H, W, 3) uint8
         image_wrist = camera_views[2]     # (H, W, 3) uint8
 
-        # Resize to 180x320 (following rollout_interact_pi.py line 235-236)
-        import torch
-        image_exterior = torch.from_numpy(image_exterior).to(torch.uint8)
-        image_wrist = torch.from_numpy(image_wrist).to(torch.uint8)
+        def _as_uint8(img: np.ndarray) -> np.ndarray:
+            img = np.asarray(img)
+            if img.dtype == np.uint8:
+                return img
+            if np.issubdtype(img.dtype, np.floating):
+                if float(np.nanmax(img)) <= 1.0:
+                    img = np.clip(img, 0.0, 1.0) * 255.0
+                else:
+                    img = np.clip(img, 0.0, 255.0)
+            return img.astype(np.uint8)
 
-        image_exterior = torch.nn.functional.interpolate(
-            image_exterior.permute(2, 0, 1).unsqueeze(0).float(),
-            size=(180, 320), mode='bilinear', align_corners=False
-        ).squeeze(0).permute(1, 2, 0).to(torch.uint8).numpy()
+        image_exterior = _as_uint8(image_exterior)
+        image_wrist = _as_uint8(image_wrist)
 
-        image_wrist = torch.nn.functional.interpolate(
-            image_wrist.permute(2, 0, 1).unsqueeze(0).float(),
-            size=(180, 320), mode='bilinear', align_corners=False
-        ).squeeze(0).permute(1, 2, 0).to(torch.uint8).numpy()
+        # Resize to 180x320 (H,W) for policy input.
+        image_exterior = cv2.resize(image_exterior, (320, 180), interpolation=cv2.INTER_LINEAR)
+        image_wrist = cv2.resize(image_wrist, (320, 180), interpolation=cv2.INTER_LINEAR)
 
-        from openpi_client import image_tools
         return {
             "image_primary": image_tools.resize_with_pad(image_exterior, 224, 224),
             "image_wrist": image_tools.resize_with_pad(image_wrist, 224, 224),
@@ -583,6 +670,9 @@ class OmniCtrlOrchestrator:
         Returns:
             Observation dictionary for policy
         """
+        if latent.ndim != 3 or latent.shape[0] != 4 or latent.shape[1] % 3 != 0:
+            raise ValueError(f"latent must be (4,72,40) with 3 views stacked, got {tuple(latent.shape)}")
+
         import einops
 
         # Split the 3-view latent: (4, 72, 40) -> (3, 4, 24, 40)
@@ -617,31 +707,7 @@ class OmniCtrlOrchestrator:
                 frame_uint8 = (frame * 255).astype(np.uint8)
                 decoded_views.append(frame_uint8)
 
-        # Following rollout_interact_pi.py:
-        # - videos[1] = exterior camera (camera 1)
-        # - videos[2] = wrist camera (camera 2)
-        image_exterior = decoded_views[1]  # (192, 320, 3)
-        image_wrist = decoded_views[2]     # (192, 320, 3)
-
-        # Resize to 180x320 then pad to 224x224 (following rollout_interact_pi.py line 235-236)
-        image_exterior = torch.from_numpy(image_exterior).to(torch.uint8)
-        image_wrist = torch.from_numpy(image_wrist).to(torch.uint8)
-
-        image_exterior = torch.nn.functional.interpolate(
-            image_exterior.permute(2, 0, 1).unsqueeze(0).float(),
-            size=(180, 320), mode='bilinear', align_corners=False
-        ).squeeze(0).permute(1, 2, 0).to(torch.uint8).numpy()
-
-        image_wrist = torch.nn.functional.interpolate(
-            image_wrist.permute(2, 0, 1).unsqueeze(0).float(),
-            size=(180, 320), mode='bilinear', align_corners=False
-        ).squeeze(0).permute(1, 2, 0).to(torch.uint8).numpy()
-
-        return {
-            "image_primary": image_tools.resize_with_pad(image_exterior, 224, 224),
-            "image_wrist": image_tools.resize_with_pad(image_wrist, 224, 224),
-            "joint_pos": joint_pos,
-        }
+        return self._camera_views_to_obs(np.stack(decoded_views, axis=0), joint_pos)
 
     def _adapt_action(self, action_joint_vel, current_joint_pos):
         """Convert joint velocity to cartesian action.
@@ -666,19 +732,27 @@ class OmniCtrlOrchestrator:
             joint_seq = np.tile(joint_pos, (pred_step, 1))
             return zero_actions, joint_seq
 
-        # Following rollout_interact_pi.py line 246-287
-        # Policy outputs (10, 8) but we need 15 steps for dynamics model
-        # Use idx to extend/repeat action chunks
-        idx = np.array([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14])  # for pi0.5, we need 15 steps
+        # Following rollout_interact_pi.py: dynamics adapter expects 15 steps.
+        # Some policies return shorter chunks; pad by repeating the last action.
+        target_len = 15
 
         # Separate joint_vel and gripper
-        joint_vel = action_joint_vel[:, :7]  # (10, 7)
-        gripper_pos = action_joint_vel[:, 7:]  # (10, 1)
+        aj = np.asarray(action_joint_vel)
+        if aj.ndim == 1:
+            aj = aj[None, :]
+        if aj.shape[1] < 8:
+            aj = np.pad(aj, ((0, 0), (0, 8 - aj.shape[1])), mode="constant")
+        elif aj.shape[1] > 8:
+            aj = aj[:, :8]
 
-        # Extend to 15 steps using modulo indexing
-        idx_mod = idx % len(joint_vel)  # [0,1,2,3,4,5,6,7,8,9,0,1,2,3,4]
-        joint_vel = joint_vel[idx_mod]  # (15, 7)
-        gripper_pos = gripper_pos[idx_mod]  # (15, 1)
+        joint_vel = aj[:, :7]
+        gripper_pos = aj[:, 7:]
+        if joint_vel.ndim == 1:
+            joint_vel = joint_vel[None, :]
+        if gripper_pos.ndim == 1:
+            gripper_pos = gripper_pos[None, :]
+        joint_vel = self._pad_or_trim_seq(joint_vel, target_len)      # (15, 7)
+        gripper_pos = self._pad_or_trim_seq(gripper_pos, target_len)  # (15, 1)
 
         # Clip gripper
         gripper_max = getattr(self.config.rollout, "gripper_max", 1.0)
@@ -701,9 +775,9 @@ class OmniCtrlOrchestrator:
         if isinstance(joint_pos_pred, torch.Tensor):
             joint_pos_pred = joint_pos_pred.cpu().numpy()  # (15, 7)
 
-        # Concatenate current + predicted
-        joint_pos_all = np.concatenate([current_joint, joint_pos_pred], axis=0)[:15]  # (15, 7)
-        gripper_pos_all = np.concatenate([current_gripper, gripper_pos], axis=0)[:15]  # (15, 1)
+        # Concatenate current + predicted (keep 15)
+        joint_pos_all = np.concatenate([current_joint, joint_pos_pred], axis=0)[:target_len]  # (15, 7)
+        gripper_pos_all = np.concatenate([current_gripper, gripper_pos], axis=0)[:target_len]  # (15, 1)
 
         # Forward kinematics: joint_pos -> cartesian_pose
         state_fk = []
@@ -718,7 +792,9 @@ class OmniCtrlOrchestrator:
         state_fk = np.array(state_fk)  # (15, 7)
 
         # Skip and select pred_step frames (following rollout_interact_pi.py line 286)
-        skip = self.config.rollout.policy_skip_step
+        skip = int(getattr(self.config.rollout, "policy_skip_step", 1))
+        if skip <= 0:
+            skip = 1
         pred_step = self.config.rollout.pred_step
         state_fk_skip = state_fk[::skip][:pred_step]  # (pred_step, 7)
         joint_pos_skip = joint_pos_all[::skip][:pred_step]  # (pred_step, 7)
@@ -732,9 +808,18 @@ class OmniCtrlOrchestrator:
         action_chunk = policy.predict_chunk(obs, instruction, chunk_size=chunk_size)
         if action_chunk is None:
             action_chunk = np.zeros((chunk_size, 8), dtype=np.float32)
-        action_chunk = np.asarray(action_chunk)
+        action_chunk = np.asarray(action_chunk, dtype=np.float32)
         if action_chunk.ndim == 1:
             action_chunk = np.tile(action_chunk, (chunk_size, 1))
+        if action_chunk.shape[1] < 8:
+            action_chunk = np.pad(action_chunk, ((0, 0), (0, 8 - action_chunk.shape[1])), mode="constant")
+        elif action_chunk.shape[1] > 8:
+            action_chunk = action_chunk[:, :8]
+        if action_chunk.shape[0] != chunk_size:
+            action_chunk = self._pad_or_trim_seq(action_chunk, int(chunk_size))
+        if not np.isfinite(action_chunk).all():
+            self.logger.warning("Non-finite values found in action_chunk; replacing with zeros.")
+            action_chunk = np.nan_to_num(action_chunk, nan=0.0, posinf=0.0, neginf=0.0)
         return action_chunk
 
     def _pad_or_trim_seq(self, seq: np.ndarray, target_len: int) -> np.ndarray:
@@ -857,27 +942,88 @@ class OmniCtrlOrchestrator:
             frame = np.clip(frame, 0.0, 1.0)
             frames_uint8.append((frame * 255).astype(np.uint8))
 
-        # Use imageio to save video (better codec compatibility)
-        try:
-            imageio.mimsave(
-                str(video_path),
-                frames_uint8,
-                fps=5,
-                codec='libx264',
-                quality=8,
-                pixelformat='yuv420p'
-            )
-        except Exception as e:
-            print(f"Warning: imageio failed ({e}), falling back to OpenCV")
-            # Fallback to OpenCV
-            h, w = frames[0].shape[:2]
+        # Prefer OpenCV writer to avoid ffmpeg/imageio crashes in some environments.
+        def _write_opencv() -> None:
+            h, w = frames_uint8[0].shape[:2]
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(str(video_path), fourcc, 5, (w, h))
-            for frame in frames:
-                frame_uint8 = (frame * 255).astype(np.uint8)
-                frame_bgr = cv2.cvtColor(frame_uint8, cv2.COLOR_RGB2BGR)
-                writer.write(frame_bgr)
-            writer.release()
+            if not writer.isOpened():
+                raise RuntimeError("cv2.VideoWriter could not be opened (mp4v)")
+            try:
+                for fr in frames_uint8:
+                    if fr.shape[:2] != (h, w):
+                        fr = cv2.resize(fr, (w, h), interpolation=cv2.INTER_AREA)
+                    writer.write(cv2.cvtColor(fr, cv2.COLOR_RGB2BGR))
+            finally:
+                writer.release()
+
+            if not video_path.exists() or video_path.stat().st_size == 0:
+                raise RuntimeError("opencv wrote empty file")
+
+        def _write_pyav() -> None:
+            import av  # type: ignore
+
+            h, w = frames_uint8[0].shape[:2]
+            if video_path.exists():
+                video_path.unlink()
+            container = av.open(str(video_path), mode="w")
+            try:
+                stream = container.add_stream("libx264", rate=5)
+                stream.width = w
+                stream.height = h
+                stream.pix_fmt = "yuv420p"
+                for fr in frames_uint8:
+                    if fr.shape[:2] != (h, w):
+                        fr = cv2.resize(fr, (w, h), interpolation=cv2.INTER_AREA)
+                    av_frame = av.VideoFrame.from_ndarray(fr, format="rgb24")
+                    for packet in stream.encode(av_frame):
+                        container.mux(packet)
+                for packet in stream.encode():
+                    container.mux(packet)
+            finally:
+                container.close()
+
+            if not video_path.exists() or video_path.stat().st_size == 0:
+                raise RuntimeError("pyav wrote empty file")
+
+        # Default to a browser-friendly codec (H.264 via PyAV) when available.
+        writer_pref = os.environ.get("CTRLWORLD_VIDEO_WRITER", "auto").lower()
+        backends: list[tuple[str, callable]] = []
+        if writer_pref in {"pyav", "auto"}:
+            backends.append(("pyav", _write_pyav))
+            backends.append(("opencv", _write_opencv))
+        else:
+            backends.append(("opencv", _write_opencv))
+            backends.append(("pyav", _write_pyav))
+
+        errors = []
+        for name, fn in backends:
+            try:
+                fn()
+                errors = []
+                break
+            except Exception as e:
+                errors.append(f"{name} failed: {e}")
+
+        # Last resort: imageio (ffmpeg). Keep it as the last fallback since it may crash on some setups.
+        if errors:
+            try:
+                imageio.mimsave(str(video_path), frames_uint8, fps=5)
+                errors = []
+            except Exception as e:
+                errors.append(f"imageio failed: {e}")
+
+        if errors:
+            print("Warning: failed to save video:", " | ".join(errors))
+            # Dump a few frames for debugging instead of crashing the whole run.
+            try:
+                frames_dir = video_dir / "frames" / task_id
+                frames_dir.mkdir(parents=True, exist_ok=True)
+                for i, fr in enumerate(frames_uint8[: min(50, len(frames_uint8))]):
+                    cv2.imwrite(str(frames_dir / f"frame_{i:06d}.png"), cv2.cvtColor(fr, cv2.COLOR_RGB2BGR))
+                print(f"Saved first frames to: {frames_dir}")
+            except Exception:
+                pass
 
         return video_path
 

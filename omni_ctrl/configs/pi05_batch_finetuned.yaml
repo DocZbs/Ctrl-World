@@ -29,7 +29,7 @@ retrieval:
 router:
   available_policies:
     - name: "pi05"
-      checkpoint: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/checkpoints/pi05_droid_lora/pickplace_lora_fixed/1000"
+      checkpoint: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/checkpoints/pi05_droid_finetune/pickplace_full_finetune_fixed/0"
       action_space: "joint_vel"
   selection_strategy: "round_robin"
   sticky: true
@@ -43,7 +43,7 @@ rollout:
   max_steps: 100
   pred_step: 5
   policy_skip_step: 2
-  action_adapter_path: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/train_adapter/checkpoints/adapter_finetuned_best.pth"
+  action_adapter_path: "models/action_adapter/model2_15_9.pth"
   device: "cuda:0"
 
 # Evaluation Configuration

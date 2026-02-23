@@ -1,0 +1,41 @@
+# Synthetic Data Generation Config - Generate from DROID 1000 episodes
+
+experiment_name: "synthetic_droid_1000"
+output_dir: "synthetic_data/droid_1000_generated"
+num_iterations: 1
+seed: 42
+device: "cuda:1"  # Policy device
+
+# Source DROID data configuration
+source_data:
+  data_dir: "/mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/droid_data"
+  start_episode: 0
+  end_episode: 999
+  save_every: 10
+
+# Policy Router Configuration - Pi0.5
+router:
+  available_policies:
+    - name: "pi05"
+      checkpoint: "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi05_droid"
+      action_space: "joint_vel"
+      device: "cuda:1"
+  selection_strategy: "round_robin"
+  sticky: true
+
+# Rollout Configuration
+rollout:
+  wm_ckpt: "/mnt/nvme-fast/huggingface/hub/models--yjguo--Ctrl-World/snapshots/8cf814693f411962dc866a2ddb5b785afd17a93a/checkpoint-10000.pt"
+  svd_model_path: "/mnt/nvme-fast/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e"
+  clip_model_path: "/mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268"
+  data_stat_path: "dataset_meta_info/droid/stat.json"
+  action_adapter_path: "models/action_adapter/model2_15_9.pth"
+  max_steps: 50
+  pred_step: 5
+  policy_skip_step: 2
+  device: "cuda:0"  # World model device
+
+# Logging
+log_frequency: 10
+video_logging: true
+save_format: "droid"  # Output format

@@ -120,13 +120,51 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip scenarios with existing output video",
     )
+    parser.add_argument(
+        "--override-policy-checkpoint",
+        action="append",
+        default=[],
+        help='Override router policy checkpoint, format: "name=/path/to/ckpt". Can be repeated.',
+    )
     return parser.parse_args()
+
+def _apply_policy_overrides(config: OmniCtrlConfig, overrides: list[str]) -> None:
+    if not overrides:
+        return
+    if not getattr(config, "router", None) or not getattr(config.router, "available_policies", None):
+        raise ValueError("Cannot override policy checkpoint: router.available_policies is empty")
+
+    mapping: dict[str, str] = {}
+    for item in overrides:
+        if "=" not in item:
+            raise ValueError(f"Invalid --override-policy-checkpoint: {item!r} (expected name=/path)")
+        name, path = item.split("=", 1)
+        name = name.strip()
+        path = path.strip()
+        if not name or not path:
+            raise ValueError(f"Invalid --override-policy-checkpoint: {item!r} (empty name/path)")
+        mapping[name.lower()] = path
+
+    updated = 0
+    for pol in config.router.available_policies:
+        pol_name = getattr(pol, "name", "")
+        if pol_name and pol_name.lower() in mapping:
+            pol.checkpoint = mapping[pol_name.lower()]
+            updated += 1
+
+    if updated == 0:
+        available = [getattr(p, "name", "") for p in config.router.available_policies]
+        raise ValueError(
+            f"No policy matched overrides={list(mapping.keys())}. available_policies={available}"
+        )
+    print(f"Applied policy checkpoint overrides: {mapping}")
 
 
 def main() -> None:
     args = parse_args()
     config = OmniCtrlConfig.from_yaml(args.config)
     config.num_iterations = args.iterations
+    _apply_policy_overrides(config, args.override_policy_checkpoint)
 
     ann_dir = Path(args.ann_dir)
     if not ann_dir.exists():

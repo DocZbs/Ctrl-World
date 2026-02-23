@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run Pi0-FAST experiments on DROID validation scenarios
 
-python scripts/run_all_droid_new_setup.py \
+python scripts/inference/run_all_droid_new_setup.py \
     --config omni_ctrl/configs/omni_ctrl_pi0_fast_droid.yaml \
     --ann-dir dataset_example/droid_new_setup/annotation/val \
     --droid-root dataset_example/droid_new_setup \
