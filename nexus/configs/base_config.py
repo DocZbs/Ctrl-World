@@ -9,6 +9,8 @@ class TaskGenConfig:
     """Configuration for task generation module."""
     type: str = "template"  # "template" or "llm"
     templates_path: str = "nexus/task_generation/templates.json"
+    # If true, use retrieved scenario instruction as rollout task instruction.
+    use_scenario_instruction: bool = False
 
     # For LLM-based generation (future)
     llm_model: str = "gpt-4"

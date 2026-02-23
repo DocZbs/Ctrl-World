@@ -27,6 +27,7 @@ from tqdm import tqdm
 import yaml
 
 from ..task_generation.template_generator import TemplateTaskGenerator
+from ..task_generation.task_schema import Task
 from ..retrieval.droid_retriever import DROIDRetriever
 from ..rollout.world_model_wrapper import WorldModelWrapper
 from ..evaluation.openai_vlm_evaluator import OpenAIVLMEvaluator
@@ -187,6 +188,9 @@ class NexusOrchestrator:
         self.top_k_candidates = config.top_k_candidates
         self.reward_threshold = config.reward_threshold
         self.max_retries = config.max_retries_per_task
+        self.use_scenario_instruction = bool(
+            getattr(config.task_gen, "use_scenario_instruction", False)
+        )
         if self.max_retries < 1:
             raise ValueError("max_retries_per_task must be >= 1")
 
@@ -211,6 +215,8 @@ class NexusOrchestrator:
 
         # Verified synthetic dataset (Algorithm 1 output)
         self.verified_set = []
+        # Track used scenes within a run to reduce repeated retrieval.
+        self._used_scene_ids = set()
 
         print("\n" + "=" * 60)
         print("NEXUS initialization complete!")
@@ -261,16 +267,33 @@ class NexusOrchestrator:
                e. If r >= threshold: add to verified set, break
                f. Else: resample scene / reroute expert based on kappa
         """
-        # Step 1: Task proposal
-        task = self.task_generator.generate_task()
-        print(f"\n[Task] {task.instruction}")
+        # Step 1: Generate a query task for retrieval
+        query_task = self.task_generator.generate_task()
 
         # Step 2: Scene grounding (temperature-scaled retrieval)
+        excluded_scene_ids = list(self._used_scene_ids) if self._used_scene_ids else None
         scenario = self.retriever.retrieve_with_temperature(
-            task,
+            query_task,
             temperature=self.retrieval_temperature,
             top_k_candidates=self.top_k_candidates,
+            excluded_episode_ids=excluded_scene_ids,
         )
+        self._used_scene_ids.add(scenario.episode_id)
+
+        # Optional mode: run directly with scenario instruction (no random task instruction).
+        if self.use_scenario_instruction:
+            task_instruction = scenario.instruction or query_task.instruction
+            task = Task(
+                instruction=task_instruction,
+                success_criteria=[task_instruction],
+                object_categories=[],
+                difficulty=getattr(query_task, "difficulty", 0.5),
+                task_id=getattr(query_task, "task_id", f"task_{iteration + 1:04d}"),
+            )
+        else:
+            task = query_task
+
+        print(f"\n[Task] {task.instruction}")
         print(f"[Scene] Episode {scenario.episode_id}: {scenario.instruction}")
 
         failed_scenes = []
@@ -346,12 +369,14 @@ class NexusOrchestrator:
                 failed_scenes.append(scenario.episode_id)
                 self.stats["scene_failures"] += 1
                 self.stats["scene_resamples"] += 1
+                excluded_for_resample = list(set(failed_scenes).union(self._used_scene_ids))
                 scenario = self.retriever.retrieve_with_temperature(
                     task,
                     temperature=self.retrieval_temperature,
                     top_k_candidates=self.top_k_candidates,
-                    excluded_episode_ids=failed_scenes,
+                    excluded_episode_ids=excluded_for_resample,
                 )
+                self._used_scene_ids.add(scenario.episode_id)
                 print(f"  [Resample scene] -> {scenario.episode_id}")
             elif kappa == "expert_failure":
                 failed_experts.append(policy.name)
