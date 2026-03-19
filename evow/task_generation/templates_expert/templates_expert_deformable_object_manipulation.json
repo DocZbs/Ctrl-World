@@ -1,0 +1,10 @@
+[
+  {"instruction": "Move the towel to the left side", "success_criteria": ["Towel is moved to the left"], "objects": ["towel"], "difficulty": 0.45},
+  {"instruction": "Fold the cloth", "success_criteria": ["Cloth is folded"], "objects": ["cloth"], "difficulty": 0.65},
+  {"instruction": "Spread the napkin flat on the table", "success_criteria": ["Napkin is flat on the table"], "objects": ["napkin"], "difficulty": 0.5},
+  {"instruction": "Pick up the fabric and place it into the basket", "success_criteria": ["Fabric is inside the basket"], "objects": ["fabric", "basket"], "difficulty": 0.55},
+  {"instruction": "Lift the bag by its edge", "success_criteria": ["Bag edge is lifted"], "objects": ["bag"], "difficulty": 0.6},
+  {"instruction": "Reposition the rope into a straight line", "success_criteria": ["Rope is approximately straight"], "objects": ["rope"], "difficulty": 0.7},
+  {"instruction": "Move the paper towel into the container", "success_criteria": ["Paper towel is in the container"], "objects": ["paper towel", "container"], "difficulty": 0.5},
+  {"instruction": "Drag the cloth toward the front edge of the table", "success_criteria": ["Cloth is near the front edge"], "objects": ["cloth", "table"], "difficulty": 0.55}
+]

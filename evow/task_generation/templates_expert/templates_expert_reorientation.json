@@ -1,0 +1,10 @@
+[
+  {"instruction": "Turn over the hat on the table", "success_criteria": ["Hat is flipped over"], "objects": ["hat"], "difficulty": 0.45},
+  {"instruction": "Rotate the cup to face forward", "success_criteria": ["Cup orientation faces forward"], "objects": ["cup"], "difficulty": 0.5},
+  {"instruction": "Flip the block to the opposite side", "success_criteria": ["Block orientation is flipped"], "objects": ["block"], "difficulty": 0.5},
+  {"instruction": "Reorient the bottle to stand upright", "success_criteria": ["Bottle is upright"], "objects": ["bottle"], "difficulty": 0.55},
+  {"instruction": "Rotate the toy by 90 degrees clockwise", "success_criteria": ["Toy rotated approximately 90 degrees"], "objects": ["toy"], "difficulty": 0.6},
+  {"instruction": "Turn the container upside down", "success_criteria": ["Container is upside down"], "objects": ["container"], "difficulty": 0.55},
+  {"instruction": "Rotate the spoon handle to the left", "success_criteria": ["Spoon handle points left"], "objects": ["spoon"], "difficulty": 0.45},
+  {"instruction": "Orient the cube so one marked face points up", "success_criteria": ["Marked face points upward"], "objects": ["cube"], "difficulty": 0.65}
+]

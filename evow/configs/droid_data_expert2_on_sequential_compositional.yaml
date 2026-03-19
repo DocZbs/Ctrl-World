@@ -1,0 +1,61 @@
+experiment_name: evow_droid_expert2_on_sequential_compositional_pi0_droid
+output_dir: experiments/evow_droid_expert2_on_sequential_compositional_pi0_droid
+num_iterations: 20
+seed: 42
+device: cuda:1
+log_frequency: 1
+task_gen:
+  type: template
+  templates_path: evow/task_generation/templates_expert/templates_expert2_pick_place_onto_high_freq.json
+  use_scenario_instruction: true
+retrieval:
+  droid_path: /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/experiments/evow_subset_data/sequential_compositional
+  index_path: /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/experiments/evow_subset_data/sequential_compositional/index
+  clip_model_path: /mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268
+  top_k: 10
+  rebuild_index: false
+  deterministic_top1: true
+  scene_clip_weight: 1.0
+  instruction_clip_weight: 1.0
+router:
+  selection_strategy: round_robin
+  available_policies:
+  - name: "pi0"
+    checkpoint: "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi0_droid"
+    action_space: joint_vel
+    device: cuda:1
+rollout:
+  wm_ckpt: /mnt/nvme-fast/huggingface/hub/models--yjguo--Ctrl-World/snapshots/8cf814693f411962dc866a2ddb5b785afd17a93a/checkpoint-10000.pt
+  svd_model_path: /mnt/nvme-fast/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid/snapshots/9cf024d5bfa8f56622af86c884f26a52f6676f2e
+  clip_model_path: /mnt/nvme-fast/huggingface/hub/models--openai--clip-vit-base-patch32/snapshots/3d74acf9a28c67741b2f4f2ea7635f0aaf6f0268
+  data_stat_path: dataset_meta_info/droid/stat.json
+  max_steps: 120
+  pred_step: 5
+  policy_skip_step: 2
+  output_fps: 15
+  action_adapter_path: models/action_adapter/model2_15_9.pth
+  device: cuda:1
+evaluation:
+  vlm_type: deferred
+  vlm_model: gpt-5.2
+  api_key: ${OPENAI_API_KEY}
+  max_retries: 1
+  timeout: 60
+  success_weight: 1.0
+  consistency_weight: 0.5
+  eval_num_frames: 8
+  frame_crop: bottom_right
+memory:
+  max_entries: 10000
+  save_path: experiments/evow_droid_expert2_on_sequential_compositional_pi0_droid/memory.json
+  context_window: 20
+vlm_routing:
+  enabled: false
+  vlm_model: gpt-5.2
+  vlm_api_key: ${OPENAI_API_KEY}
+  timeout: 30
+retrieval_temperature: 0.0
+top_k_candidates: 200
+reward_threshold: 0.3
+max_retries_per_task: 1
+skill_library_path: experiments/evow_droid_expert2_on_sequential_compositional_pi0_droid/skills

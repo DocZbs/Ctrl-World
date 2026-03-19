@@ -1,0 +1,61 @@
+experiment_name: "evow"
+output_dir: "experiments/evow"
+num_iterations: 20
+seed: 42
+device: "cuda:0"
+log_frequency: 5
+
+task_gen:
+  type: "template"
+  templates_path: "evow/task_generation/templates.json"
+
+retrieval:
+  droid_path: "dataset_example/droid_subset"
+  index_path: "experiments/droid_index"
+  clip_model_path: "openai/clip-vit-base-patch32"
+  top_k: 5
+  rebuild_index: false
+
+router:
+  selection_strategy: "round_robin"
+  available_policies:
+    - name: "pi05"
+      checkpoint: "/path/to/your/pi05_checkpoint"
+      action_space: "joint_vel"
+
+rollout:
+  wm_ckpt: "/path/to/your/ctrl_world_checkpoint.pt"
+  svd_model_path: "/path/to/your/svd_model"
+  clip_model_path: "/path/to/your/clip_model"
+  data_stat_path: "dataset_meta_info/droid/stat.json"
+  max_steps: 50
+  pred_step: 5
+  policy_skip_step: 2
+  action_adapter_path: "models/action_adapter/model2_15_9.pth"
+  device: "cuda:0"
+
+evaluation:
+  vlm_type: "gpt-5"
+  vlm_model: "gpt-5"
+  api_key: "${OPENAI_API_KEY}"
+  max_retries: 3
+  timeout: 60
+  success_weight: 1.0
+  consistency_weight: 0.5
+
+memory:
+  max_entries: 10000
+  save_path: "experiments/evow/memory.json"
+  context_window: 20
+
+vlm_routing:
+  enabled: true
+  vlm_model: "gpt-5.2"
+  vlm_api_key: "${OPENAI_API_KEY}"
+  timeout: 30
+
+retrieval_temperature: 0.1
+top_k_candidates: 20
+reward_threshold: 0.3
+max_retries_per_task: 3
+skill_library_path: "experiments/evow/skills"

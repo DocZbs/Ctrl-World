@@ -1,0 +1,138 @@
+pi_series_vla_training:
+  description: "Consolidated training configs for pi05 / pi0 / pi0-fast in Ctrl-World + OpenPI."
+
+  shared:
+    dataset_format: "DROID / LeRobot-style fine-tuning dataset"
+    default_dataset_dir: "droid_data/data/chunk-000"
+    default_checkpoint_base_dir: "checkpoints"
+    default_openpi_data_home: "/mnt/nvme-fast/huggingface/hub"
+    default_python_exe: "openpi/.venv/bin/python"
+    default_num_workers: 8
+    default_save_interval: 10000
+    default_log_interval: 20
+    default_shuffle: false
+    default_require_joint_velocity: true
+    default_hf_hub_offline: true
+    default_xla:
+      XLA_PYTHON_CLIENT_PREALLOCATE: false
+      XLA_PYTHON_CLIENT_MEM_FRACTION: 0.40
+      XLA_PYTHON_CLIENT_ALLOCATOR: "platform"
+    notes:
+      - "训练入口来自 openpi/scripts/train.py。"
+      - "脚本默认使用本地缓存的 OpenPI checkpoint/assets。"
+      - "HF-DROID 直读路径按顺序访问优化，默认不打乱。"
+
+  profiles:
+    pi05:
+      train_config_name: "pi05_droid_finetune"
+      model:
+        family: "pi0"
+        pi05: true
+        action_dim: 32
+        action_horizon: 15
+      data:
+        repo_id_placeholder: "your_hf_username/my_droid_dataset"
+        prompt_from_task: true
+        assets_dir: "gs://openpi-assets/checkpoints/pi05_droid/assets"
+        asset_id: "droid"
+      weights:
+        checkpoint_params: "gs://openpi-assets/checkpoints/pi05_droid/params"
+      openpi_default:
+        num_train_steps: 20000
+        batch_size: 32
+      ctrl_world_script_default:
+        script: "scripts/training/run_pi05_finetune_chunk000.sh"
+        gpu: 1
+        exp_name: "pi05_chunk000_finetune_debug"
+        dataset_dir: "droid_data/data/chunk-000"
+        checkpoint_base_dir: "checkpoints"
+        train_steps: 50000
+        batch_size: 16
+        num_workers: 8
+        log_interval: 20
+        save_interval: 10000
+        preflight: true
+        shuffle: false
+        require_joint_velocity: true
+        resume: false
+        overwrite: true
+
+    pi0:
+      train_config_name: "pi0_droid_finetune"
+      model:
+        family: "pi0"
+        action_horizon: 10
+      data:
+        repo_id_placeholder: "your_hf_username/my_droid_dataset"
+        prompt_from_task: true
+        assets_dir: "gs://openpi-assets/checkpoints/pi0_droid/assets"
+        asset_id: "droid"
+      weights:
+        checkpoint_params: "gs://openpi-assets/checkpoints/pi0_droid/params"
+      openpi_default:
+        num_train_steps: 20000
+        batch_size: 32
+      ctrl_world_script_default:
+        script: "scripts/training/run_pi0_finetune_chunk000.sh"
+        gpu: 1
+        exp_name: "pi0_chunk000_finetune_replay"
+        dataset_dir: "droid_data/data/chunk-000"
+        checkpoint_base_dir: "checkpoints"
+        train_steps: 100000
+        batch_size: 8
+        num_workers: 8
+        log_interval: 20
+        save_interval: 10000
+        preflight: false
+        shuffle: false
+        require_joint_velocity: true
+        resume: false
+        overwrite: true
+        extra_train_args: ""
+
+    pi0_fast:
+      train_config_name: "pi0_fast_droid_finetune"
+      model:
+        family: "pi0-fast"
+        action_dim: 8
+        action_horizon: 10
+        max_token_len: 180
+      data:
+        repo_id_placeholder: "your_hf_username/my_droid_dataset"
+        prompt_from_task: true
+        assets_dir: "gs://openpi-assets/checkpoints/pi0_fast_droid/assets"
+        asset_id: "droid"
+      weights:
+        checkpoint_params: "gs://openpi-assets/checkpoints/pi0_fast_droid/params"
+        tokenizer_repo: "physical-intelligence/fast"
+      openpi_default:
+        num_train_steps: 20000
+        batch_size: 32
+      ctrl_world_script_default:
+        script: "scripts/training/run_pi0_fast_finetune_chunk000.sh"
+        gpu: 1
+        exp_name: "pi0_fast_chunk000_finetune_debug"
+        dataset_dir: "droid_data/data/chunk-000"
+        checkpoint_base_dir: "checkpoints"
+        train_steps: 30000
+        batch_size: 8
+        num_workers: 8
+        log_interval: 20
+        save_interval: 10000
+        preflight: true
+        shuffle: false
+        require_joint_velocity: true
+        resume: false
+        overwrite: true
+        extra_train_args: ""
+      extra_requirements:
+        hf_hub_cache_paths:
+          - "/mnt/nvme-fast/huggingface/hub/models--physical-intelligence--fast"
+          - "/mnt/nvme-fast/huggingface/hub/openpi-assets/checkpoints/pi0_fast_droid/models--physical-intelligence--fast"
+        note: "离线训练前需要提前缓存 tokenizer repo。"
+
+  source_refs:
+    - "openpi/src/openpi/training/config.py"
+    - "scripts/training/run_pi05_finetune_chunk000.sh"
+    - "scripts/training/run_pi0_finetune_chunk000.sh"
+    - "scripts/training/run_pi0_fast_finetune_chunk000.sh"

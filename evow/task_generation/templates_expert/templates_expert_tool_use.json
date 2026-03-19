@@ -1,0 +1,10 @@
+[
+  {"instruction": "Use the spoon to move beans into the cup", "success_criteria": ["More beans are in the cup after manipulation"], "objects": ["spoon", "beans", "cup"], "difficulty": 0.65},
+  {"instruction": "Use the brush to sweep crumbs into the tray", "success_criteria": ["Crumbs are moved into the tray"], "objects": ["brush", "crumbs", "tray"], "difficulty": 0.7},
+  {"instruction": "Use the sponge to wipe the marked area", "success_criteria": ["Sponge contacts and wipes the marked area"], "objects": ["sponge", "table"], "difficulty": 0.6},
+  {"instruction": "Use the stick to push the object into the bowl", "success_criteria": ["Object is inside the bowl"], "objects": ["stick", "object", "bowl"], "difficulty": 0.65},
+  {"instruction": "Use the scraper to gather pieces together", "success_criteria": ["Pieces are gathered into a cluster"], "objects": ["scraper", "pieces"], "difficulty": 0.7},
+  {"instruction": "Use the tongs to transfer the block", "success_criteria": ["Block is transferred to target area using tongs"], "objects": ["tongs", "block"], "difficulty": 0.75},
+  {"instruction": "Use the ladle to scoop items into the container", "success_criteria": ["Items are moved into the container"], "objects": ["ladle", "items", "container"], "difficulty": 0.7},
+  {"instruction": "Use the ruler to push the cube to the target zone", "success_criteria": ["Cube reaches the target zone"], "objects": ["ruler", "cube", "target"], "difficulty": 0.6}
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "instruction": "Put the marker into the cup",
+    "success_criteria": ["Marker is inside the cup"],
+    "objects": ["marker", "cup"],
+    "difficulty": 0.2
+  },
+  {
+    "instruction": "Put the block into the bowl",
+    "success_criteria": ["Block is inside the bowl"],
+    "objects": ["block", "bowl"],
+    "difficulty": 0.25
+  },
+  {
+    "instruction": "Put the toy into the bowl",
+    "success_criteria": ["Toy is inside the bowl"],
+    "objects": ["toy", "bowl"],
+    "difficulty": 0.25
+  },
+  {
+    "instruction": "Put the cup into the bowl",
+    "success_criteria": ["Cup is inside the bowl"],
+    "objects": ["cup", "bowl"],
+    "difficulty": 0.25
+  },
+  {
+    "instruction": "Put the block into the box",
+    "success_criteria": ["Block is inside the box"],
+    "objects": ["block", "box"],
+    "difficulty": 0.3
+  },
+  {
+    "instruction": "Put the bottle into the bin",
+    "success_criteria": ["Bottle is inside the bin"],
+    "objects": ["bottle", "bin"],
+    "difficulty": 0.3
+  },
+  {
+    "instruction": "Put the marker into the pot",
+    "success_criteria": ["Marker is inside the pot"],
+    "objects": ["marker", "pot"],
+    "difficulty": 0.3
+  },
+  {
+    "instruction": "Put the object into the container",
+    "success_criteria": ["Object is inside the container"],
+    "objects": ["object", "container"],
+    "difficulty": 0.35
+  }
+]

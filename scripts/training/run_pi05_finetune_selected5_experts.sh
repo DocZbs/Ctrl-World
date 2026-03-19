@@ -34,10 +34,10 @@ REQUIRE_JOINT_VEL="${REQUIRE_JOINT_VEL:-1}"
 PREFLIGHT="${PREFLIGHT:-0}"
 
 CATEGORIES=(
-  pick_place_into
-  pick_place_onto
-  pick_place_transfer
+  pick_place
+  reorientation
   articulation_manipulation
+  tool_use
   deformable_object_manipulation
 )
 

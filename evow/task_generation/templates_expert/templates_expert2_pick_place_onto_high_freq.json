@@ -1,0 +1,68 @@
+[
+  {
+    "instruction": "Put the lid onto the pot",
+    "success_criteria": [
+      "Lid is on top of the pot"
+    ],
+    "objects": [
+      "lid",
+      "pot"
+    ],
+    "difficulty": 0.25
+  },
+  {
+    "instruction": "Place the cup onto the table",
+    "success_criteria": [
+      "Cup is on the table"
+    ],
+    "objects": [
+      "cup",
+      "table"
+    ],
+    "difficulty": 0.2
+  },
+  {
+    "instruction": "Move the bowl onto the table",
+    "success_criteria": [
+      "Bowl is on the table"
+    ],
+    "objects": [
+      "bowl",
+      "table"
+    ],
+    "difficulty": 0.2
+  },
+  {
+    "instruction": "Place the block onto the table",
+    "success_criteria": [
+      "Block is on the table"
+    ],
+    "objects": [
+      "block",
+      "table"
+    ],
+    "difficulty": 0.25
+  },
+  {
+    "instruction": "Put the toy onto the table",
+    "success_criteria": [
+      "Toy is on the table"
+    ],
+    "objects": [
+      "toy",
+      "table"
+    ],
+    "difficulty": 0.25
+  },
+  {
+    "instruction": "Place the cup onto the plate",
+    "success_criteria": [
+      "Cup is on the plate"
+    ],
+    "objects": [
+      "cup",
+      "plate"
+    ],
+    "difficulty": 0.3
+  }
+]

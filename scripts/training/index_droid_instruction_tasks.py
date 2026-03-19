@@ -13,6 +13,7 @@ from typing import Any
 
 TASK_KEYS = [
     "pick_place",
+    "sequential_compositional",
     "reorientation",
     "articulation_manipulation",
     "tool_use",
@@ -132,6 +133,67 @@ def _is_tool_use(text: str) -> bool:
     return has_tool_verb and has_tool_obj
 
 
+def _count_action_verbs(text: str) -> int:
+    verbs = [
+        "pick",
+        "place",
+        "put",
+        "move",
+        "take",
+        "transfer",
+        "stack",
+        "insert",
+        "remove",
+        "open",
+        "close",
+        "push",
+        "pull",
+        "press",
+        "turn",
+        "twist",
+        "flip",
+        "rotate",
+        "lift",
+        "drop",
+        "set",
+        "wipe",
+        "fold",
+        "unfold",
+    ]
+    return sum(len(re.findall(rf"\b{re.escape(v)}\b", text)) for v in verbs)
+
+
+def _is_sequential_compositional(text: str) -> bool:
+    """Detect explicit long-horizon multi-stage instructions.
+
+    This category is intentionally strict: we only keep instructions that
+    contain clear temporal sequencing markers (e.g., "first ... then ...",
+    "after", "before", "followed by") and at least two action verbs.
+    """
+    if not text:
+        return False
+
+    verb_count = _count_action_verbs(text)
+
+    temporal_patterns = [
+        r"\bthen\b",
+        r"\band then\b",
+        r"\bafter that\b",
+        r"\bafterwards\b",
+        r"\bfollowed by\b",
+        r"\bnext\b",
+        r"\bsubsequently\b",
+        r"\bfinally\b",
+        r"\bfirst\b.*\bthen\b",
+        r"\bonce\b",
+        r"\bafter\b",
+        r"\bbefore\b",
+    ]
+    has_temporal_marker = any(re.search(p, text) for p in temporal_patterns)
+
+    return has_temporal_marker and verb_count >= 2
+
+
 def classify_instruction(instruction: str) -> str | None:
     t = _norm(instruction)
     if not t:
@@ -195,7 +257,12 @@ def classify_instruction(instruction: str) -> str | None:
         "remove",
     ]
 
-    # Priority: deformable > tool use > articulation > reorientation > pick-place
+    # Priority: sequential > deformable > tool use > articulation > reorientation > pick-place
+    # Sequential tasks are intentionally carved out first because they often mix
+    # multiple atomic skills and should form a dedicated specialist subset.
+    if _is_sequential_compositional(t):
+        return "sequential_compositional"
+
     if _contains_any(t, deformable_kw):
         return "deformable_object_manipulation"
 
@@ -223,7 +290,7 @@ def _sample_or_all(items: list[EpisodeRef], max_episodes: int | None, seed: int)
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Index DROID episodes into 5 instruction-driven task categories.")
+    ap = argparse.ArgumentParser(description="Index DROID episodes into 6 instruction-driven task categories.")
     ap.add_argument("--dataset-path", required=True, type=str)
     ap.add_argument("--chunks", nargs="*", default=None)
     ap.add_argument("--action-horizon", type=int, default=15)

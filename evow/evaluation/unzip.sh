@@ -1,0 +1,1 @@
+unzip /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/experiments/Exp_Groot/gr00t-base-reorientation.zip -d /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/experiments/Exp_Groot/

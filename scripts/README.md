@@ -184,6 +184,32 @@ The `--skip-existing` flag (enabled by default) will skip scenarios that already
 bash scripts/run_all_octo.sh
 ```
 
+### Example 5: Human label rollout videos (auto-save)
+
+For manual success/failure annotation on GR00T rollout videos:
+
+```bash
+python scripts/utils/human_annotation_server.py \
+  --root /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/experiments/Exp_Groot \
+  --output /mnt/nvme-fast/zbs/ctrl-world/Ctrl-World/experiments/Exp_Groot/human_annotations.json \
+  --port 18765
+```
+
+Then open:
+
+```text
+http://127.0.0.1:18765/__annotate__/
+```
+
+Features:
+- Auto-save after each label click
+- Auto-save when editing comments
+- If marked as failure, select a required failure reason
+- Result JSON includes real-time `sr` (success / (success + failure))
+- Summary includes failure-reason counts/distribution
+- Resume from existing annotation JSON
+- Keyboard shortcuts for fast labeling (`1/0/2/3`, `←/→`, `U`, `C`)
+
 ## 🔧 Troubleshooting
 
 ### OOM (Out of Memory) Errors
@@ -206,6 +232,25 @@ If using OpenAI VLM evaluator:
 1. Set API key: `export OPENAI_API_KEY=your-key`
 2. Use VPN if needed
 3. Or use DummyEvaluator for testing (modify config)
+
+### Local Qwen-VL Evaluator
+
+You can run local trajectory evaluation without OpenAI API by setting:
+
+```yaml
+evaluation:
+  vlm_type: qwen-vl
+  vlm_model: /mnt/nvme-fast/huggingface/hub/models--Qwen--Qwen3-VL-4B-Instruct/snapshots/ebb281ec70b05090aa6165b016eac8ec08e71b17
+  eval_num_frames: 8
+  frame_crop: bottom
+```
+
+Optional runtime overrides for local Qwen evaluator:
+- `EVOW_QWEN_DEVICE` (e.g. `cuda:1`)
+- `EVOW_QWEN_TORCH_DTYPE` (`auto` / `bf16` / `fp16` / `fp32`)
+- `EVOW_QWEN_MAX_NEW_TOKENS`
+
+For `Qwen3-VL-*` checkpoints, use a recent `transformers` version (>= 4.57).
 
 ## 🗑️ Deprecated Scripts
 

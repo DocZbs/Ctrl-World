@@ -1,0 +1,10 @@
+[
+  {"instruction": "Place the blue block onto the plate", "success_criteria": ["Blue block is on top of the plate"], "objects": ["block", "plate"], "difficulty": 0.3},
+  {"instruction": "Put the cup onto the tray", "success_criteria": ["Cup is on the tray"], "objects": ["cup", "tray"], "difficulty": 0.35},
+  {"instruction": "Move the red cube onto the green pad", "success_criteria": ["Red cube is on the green pad"], "objects": ["cube", "pad"], "difficulty": 0.4},
+  {"instruction": "Place the lid onto the container", "success_criteria": ["Lid is on the container"], "objects": ["lid", "container"], "difficulty": 0.45},
+  {"instruction": "Set the bowl onto the stand", "success_criteria": ["Bowl is on the stand"], "objects": ["bowl", "stand"], "difficulty": 0.4},
+  {"instruction": "Put the toy onto the shelf", "success_criteria": ["Toy is on the shelf"], "objects": ["toy", "shelf"], "difficulty": 0.5},
+  {"instruction": "Place the sponge onto the table mat", "success_criteria": ["Sponge is on the table mat"], "objects": ["sponge", "mat"], "difficulty": 0.35},
+  {"instruction": "Move the white block onto the black platform", "success_criteria": ["White block is on the black platform"], "objects": ["block", "platform"], "difficulty": 0.45}
+]

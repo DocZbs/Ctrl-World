@@ -1,0 +1,10 @@
+[
+  {"instruction": "Open the drawer", "success_criteria": ["Drawer is open"], "objects": ["drawer"], "difficulty": 0.4},
+  {"instruction": "Close the drawer", "success_criteria": ["Drawer is closed"], "objects": ["drawer"], "difficulty": 0.35},
+  {"instruction": "Open the cabinet door", "success_criteria": ["Cabinet door is open"], "objects": ["cabinet", "door"], "difficulty": 0.5},
+  {"instruction": "Close the cabinet door", "success_criteria": ["Cabinet door is closed"], "objects": ["cabinet", "door"], "difficulty": 0.45},
+  {"instruction": "Turn the knob clockwise", "success_criteria": ["Knob rotated clockwise"], "objects": ["knob"], "difficulty": 0.55},
+  {"instruction": "Push the button", "success_criteria": ["Button is pressed"], "objects": ["button"], "difficulty": 0.3},
+  {"instruction": "Pull the handle to open the compartment", "success_criteria": ["Compartment is open"], "objects": ["handle", "compartment"], "difficulty": 0.55},
+  {"instruction": "Close the lid", "success_criteria": ["Lid is closed"], "objects": ["lid"], "difficulty": 0.4}
+]
